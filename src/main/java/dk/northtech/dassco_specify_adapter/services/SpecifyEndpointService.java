@@ -50,9 +50,9 @@ public class SpecifyEndpointService {
         Map<String, Object> loginMap = login();
         String csrfToken = loginMap.get("csrftoken").toString();
         // 3: Get Asset Institution and Collection Mapping:
-        String institutionMapping = assetService.getInstitutionMapping(erdaAsset.institution, user);
-        String collectionMapping = assetService.getCollectionMapping(erdaAsset.collection, user);
-        String collectionToSearch = institutionMapping + " " + collectionMapping;
+        String institution = erdaAsset.institution;
+        String collection = erdaAsset.collection;
+        String collectionToSearch = institution + " " + collection;
         Object collectionObj = loginMap.get("collections");
         int specifyCollectionId = 0;
         if (collectionObj instanceof JSONObject collections){
@@ -76,8 +76,8 @@ public class SpecifyEndpointService {
             }
         }
         // 5: Get Collection Object (if it exists!):
-        // TODO: This "barcode" is hardcoded. When mapping feature gets deployed, I need to test against real actual objects!
-        JSONObject collectionObject = getCollectionObject(csrfToken, collectionId, sessionId, "016082024");
+        String barcode = erdaAsset.specimens.getFirst().barcode();
+        JSONObject collectionObject = getCollectionObject(csrfToken, collectionId, sessionId, barcode);
         // 6: Get files in ERDA:
         List<String> files = assetFileService.getAssetFiles(assetGuid, user);
         // 7: Sanitize the list of files to only get the filenames:
@@ -95,8 +95,8 @@ public class SpecifyEndpointService {
         for (int i = 0; i < files.size(); i++){
             // 10.a: Get institution, collection, asset and path:
             String[] parts = files.get(i).split("/");
-            String institution = parts[2];
-            String collection = parts[3];
+            String fileInstitution = parts[2];
+            String fileCollection = parts[3];
             String asset = parts[4];
             String path = parts[5];
             String filename = parts[parts.length - 1];
@@ -105,7 +105,7 @@ public class SpecifyEndpointService {
             String attachmentLocation = uploadParam.getString("attachmentLocation");
             String attachmentToken = uploadParam.getString("token");
             // 10.c: Fetch the file:
-            InputStream inputStream = assetFileService.fetchFiles(institution, collection, asset, path, user);
+            InputStream inputStream = assetFileService.fetchFiles(fileInstitution, fileCollection, asset, path, user);
             // 10.d: Upload file to the asset server:
             createFormData(attachmentToken, attachmentLocation, collectionName, inputStream, filename);
             // 10.e: Get mime type
