@@ -75,8 +75,6 @@ public class AssetFileService {
 
             try {
                 HttpResponse<InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-                System.out.println(response.body());
-                System.out.println(response.statusCode());
 
                 if (response.statusCode() == 200){
                     return response.body();

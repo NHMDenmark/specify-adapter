@@ -121,7 +121,8 @@ public class SpecifyEndpointService {
         putCollectionObject(collectionId, csrfToken, sessionId, collectionObjectId, collectionObject);
         // 13: Log out the user:
         logout(csrfToken, collectionId);
-        return Response.status(200).entity("Attachment from " + erdaAsset.asset_guid + " uploaded successfully to Collection Object with ID: " + collectionObjectId).build();
+        return Response.status(200)
+                .entity("Attachment from " + erdaAsset.asset_guid + " uploaded successfully to Collection Object with ID: " + collectionObjectId).build();
     }
 
 
