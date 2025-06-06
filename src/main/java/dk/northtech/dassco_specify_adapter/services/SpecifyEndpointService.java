@@ -430,6 +430,7 @@ public class SpecifyEndpointService {
         }
     }
 
+    //TODO Mapping here!
     public JSONObject createAttachmentResource(String attachmentLocation, String mimeType, String filename, int index){
         JSONObject attachment = new JSONObject();
         attachment.put("attachmentlocation", attachmentLocation);
@@ -437,6 +438,7 @@ public class SpecifyEndpointService {
         attachment.put("origfilename", filename);
         attachment.put("title", filename);
         attachment.put("ispublic", true);
+        // What is this
         attachment.put("tableid", 111);
 
         JSONObject attachmentResource = new JSONObject();

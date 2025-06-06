@@ -15,8 +15,8 @@ public class QueueServiceHandler {
     private static final Logger LOGGER = LoggerFactory.getLogger(QueueServiceHandler.class);
     private final ServiceManager serviceManager;
 
-    public QueueServiceHandler(QueueBroadcaster queueBroadcaster) {
-        this.serviceManager = new ServiceManager(ImmutableList.of(queueBroadcaster));
+    public QueueServiceHandler(QueueBroadcaster queueBroadcaster, QueueListener queueListener) {
+        this.serviceManager = new ServiceManager(ImmutableList.of(queueBroadcaster, queueListener));
     }
 
     @PostConstruct
