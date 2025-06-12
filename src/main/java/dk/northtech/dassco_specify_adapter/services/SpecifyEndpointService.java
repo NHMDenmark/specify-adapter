@@ -107,7 +107,7 @@ public class SpecifyEndpointService {
             // 10.c: Fetch the file:
             InputStream inputStream = assetFileService.fetchFiles(fileInstitution, fileCollection, asset, path, user);
             // 10.d: Upload file to the asset server:
-            createFormData(attachmentToken, attachmentLocation, collectionName, inputStream, filename);
+            uploadFile(attachmentToken, attachmentLocation, collectionName, inputStream, filename);
             // 10.e: Get mime type
             String mimeType = tika.detect(filename);
             // 10.f: Make the attachment resource:
@@ -400,7 +400,7 @@ public class SpecifyEndpointService {
         }
     }
 
-    public void createFormData(String attachmentToken, String attachmentLocation, String collectionName, InputStream inputStream, String filename){
+    public void uploadFile(String attachmentToken, String attachmentLocation, String collectionName, InputStream inputStream, String filename){
         try (CloseableHttpClient httpClient = HttpClients.createDefault()){
 
             HttpPost uploadFile = new HttpPost(this.specifyProperties.assetServer() + "/fileupload");

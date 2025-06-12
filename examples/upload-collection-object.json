@@ -1,0 +1,59 @@
+{
+  "collectingevent": {
+    "discipline": "/api/specify/discipline/688129/",
+    "stationfieldnumber": null,
+    "startdateprecision": 1,
+    "enddateprecision": 1,
+    "verbatimdate": null,
+    "remarks": null,
+    "enddateverbatim": null,
+    "startdateverbatim": null,
+    "method": null,
+    "collectingeventattachments": [],
+    "collectors": [],
+    "_tableName": "CollectingEvent"
+  },
+  "collection": "/api/specify/collection/688130/",
+  "catalognumber": "#########",
+  "altcatalognumber": null,
+  "catalogeddateprecision": 1,
+  "projectnumber": null,
+  "text3": null,
+  "objectcondition": null,
+  "yesno1": true,
+  "remarks": "Remark",
+  "text1": null,
+  "description": null,
+  "guid": null,
+  "cataloger": "/api/specify/agent/375600/",
+  "determinations": [],
+  "preparations": [],
+  "collectionobjectattachments": [
+    {
+      "ordinal": 0,
+      "attachment": {
+        "attachmentlocation": "a4b41671-30fe-4421-92d9-9ca5573178bd.tif",
+        "mimetype": "image/tiff",
+        "origfilename": "7e7-a-04-0d-11-13-1-001-01-000-070391-00000.tif",
+        "title": "7e7-a-04-0d-11-13-1-001-01-000-070391-00000.tif",
+        "ispublic": true,
+        "tableid": 111,
+        "dateimaged": null,
+        "copyrightholder": "bob",
+        "copyrightdate": null,
+        "license": "and registration",
+        "credit": "didid",
+        "remarks": "test dta",
+        "type": null,
+        "subtype": "bazzviola",
+        "metadatatext": null,
+        "filecreateddate": "2025-06-10",
+        "_tableName": "Attachment"
+      },
+      "_tableName": "CollectionObjectAttachment"
+    }
+  ],
+  "collectionobjectproperties": [],
+  "exsiccataitems": [],
+  "_tableName": "CollectionObject"
+}
