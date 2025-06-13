@@ -6,4 +6,6 @@ public enum InternalStatus {
     , COMPLETED
     , ERDA_FAILED
     , ERDA_ERROR
+    ,SPECIFY_SYNC_SCHEDULED
+    ,SPECIFY_SYNC_FAILED
 }

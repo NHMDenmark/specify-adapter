@@ -12,7 +12,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
@@ -47,6 +46,13 @@ public class MappingService {
         //Fill the collection attachment
         CollectionObjectAttachment collectionObjectAttachment = new CollectionObjectAttachment();
         collectionObjectAttachment.ordinal = 0;
+        collectionObjectAttachment.ars_collection = asset.collection;
+        collectionObjectAttachment.ars_institution = asset.institution;
+        collectionObjectAttachment.ars_assetguid = asset.asset_guid;
+        if(asset.specimens.isEmpty()) {
+            throw new SpecifyAdapterException("No specimens found for asset: " + asset, AcknowledgeStatus.MAPPING_ERROR);
+        }
+        collectionObjectAttachment.ars_barcode = asset.specimens.getFirst().barcode();
         Attachment attachment = new Attachment();
         attachment.attachmentlocation = mappedValues.get("attachmentlocation");
         attachment.origfilename = mappedValues.get("origfilename");

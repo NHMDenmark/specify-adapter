@@ -20,4 +20,22 @@ public class Attachment {
     public final Integer tableid = 111;
     public final String _tableName = "Attachment";
 
+    @Override
+    public String toString() {
+        return "Attachment{" +
+               "attachmentlocation='" + attachmentlocation + '\'' +
+               ", mimetype='" + mimetype + '\'' +
+               ", origfilename='" + origfilename + '\'' +
+               ", title='" + title + '\'' +
+               ", ispublic=" + ispublic +
+               ", remarks='" + remarks + '\'' +
+               ", filecreateddate='" + filecreateddate + '\'' +
+               ", copyrightdate='" + copyrightdate + '\'' +
+               ", copyrightholder='" + copyrightholder + '\'' +
+               ", license='" + license + '\'' +
+               ", credit='" + credit + '\'' +
+               ", tableid=" + tableid +
+               ", _tableName='" + _tableName + '\'' +
+               '}';
+    }
 }

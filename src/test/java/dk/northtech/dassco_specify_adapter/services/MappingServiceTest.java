@@ -14,7 +14,7 @@ import java.util.List;
 import static com.google.common.truth.Truth.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
-class MappingServiceTest {
+public class MappingServiceTest {
 
     private static String default_conf = """
             #Always take the first entry in file_formats
@@ -85,7 +85,7 @@ class MappingServiceTest {
 
 
     }
-    public Asset getTestAsset() {
+    public static Asset getTestAsset() {
         Asset asset = new Asset();
         asset.asset_locked = false;
         asset.status = "BEING_PROCESSED";

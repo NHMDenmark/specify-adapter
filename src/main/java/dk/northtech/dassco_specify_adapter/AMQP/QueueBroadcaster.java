@@ -1,8 +1,12 @@
 package dk.northtech.dassco_specify_adapter.AMQP;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.common.util.concurrent.AbstractIdleService;
 import com.rabbitmq.jms.admin.RMQConnectionFactory;
 import dk.northtech.dassco_specify_adapter.configuration.AMQPConfig;
+import dk.northtech.dassco_specify_adapter.domain.Acknowledge;
 import dk.northtech.dassco_specify_adapter.services.KeycloakService;
 import jakarta.inject.Inject;
 import jakarta.jms.*;
@@ -11,6 +15,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 @Service
 public class QueueBroadcaster extends AbstractIdleService {
@@ -23,7 +29,8 @@ public class QueueBroadcaster extends AbstractIdleService {
     QueueSender sender;
     QueueSession session;
     QueueConnection queueConnection;
-
+    private Instant lastRestart;
+    ObjectWriter writer = new ObjectMapper().registerModule(new JavaTimeModule()).writer().withDefaultPrettyPrinter();
     @Inject
     public QueueBroadcaster(KeycloakService keycloakService, AMQPConfig amqpConfig) {
         this.keycloakService = keycloakService;
@@ -50,6 +57,11 @@ public class QueueBroadcaster extends AbstractIdleService {
     @Override
     protected void startUp() {
         LOGGER.info("Initializing {}", this.getClass().getSimpleName());
+        init();
+
+    }
+
+    protected void init() {
         try {
             this.queueConnection = getQueueConnectionFactory().createQueueConnection("", token());
             this.queueConnection.start();
@@ -57,10 +69,10 @@ public class QueueBroadcaster extends AbstractIdleService {
             Queue queue = this.session.createQueue(queueName());
             this.sender = this.session.createSender(queue);
             this.sender.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
+            this.lastRestart = Instant.now();
         } catch (JMSException e) {
             throw new RuntimeException("QueueBroadcaster failed to connect to the queue", e);
         }
-
     }
 
     private QueueConnectionFactory getQueueConnectionFactory(){
@@ -92,12 +104,20 @@ public class QueueBroadcaster extends AbstractIdleService {
         return rmqCF;
     }
 
-    public void sendMessage(String ackObj) {
+    public void sendMessage(Acknowledge acknowledge) {
+        synchronized (this) {
+            if (lastRestart.plus(1, ChronoUnit.MINUTES).isBefore(Instant.now())) {
+                LOGGER.info("Refreshing sesh");
+                this.closeSession();
+                this.init();
+            }
+        }
         try {
-            LOGGER.info("Sending object {}", ackObj);
-            sender.send(textMessage(this.session, ackObj));
+            LOGGER.info("Sending object {}", acknowledge);
+
+            sender.send(textMessage(this.session, writer.writeValueAsString(acknowledge)));
         } catch (Exception e) {
-            LOGGER.error("Could not send object {}", ackObj);
+            LOGGER.error("Could not send object {}", acknowledge);
             throw new RuntimeException("An error occurred when trying to send the object to the queue", e);
         }
     }
@@ -110,9 +130,7 @@ public class QueueBroadcaster extends AbstractIdleService {
         }
     }
 
-    @Override
-    protected void shutDown() {
-        LOGGER.info("Shutting down {}", this.getClass().getSimpleName());
+    protected void closeSession() {
         try {
             if (this.sender != null) {
                 this.sender.close();
@@ -124,6 +142,12 @@ public class QueueBroadcaster extends AbstractIdleService {
         } catch (JMSException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    protected void shutDown() {
+        LOGGER.info("Shutting down {}", this.getClass().getSimpleName());
+        closeSession();
         LOGGER.info("{} is shut down", this.getClass().getSimpleName());
     }
 }

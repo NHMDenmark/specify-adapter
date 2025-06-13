@@ -26,10 +26,10 @@ public class AssetFileService {
         this.fileProxyProperties = fileProxyProperties;
     }
 
-    public List<String> getAssetFiles(String assetGuid, User user) {
+    public List<String> getAssetFiles(String assetGuid, String token) {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(fileProxyProperties.rootUrl() + "/file_proxy/api/assetfiles/listfiles/" + assetGuid))
-                .header("Authorization", "Bearer " + user.token)
+                .header("Authorization", "Bearer " + token)
                 .GET()
                 .build();
 

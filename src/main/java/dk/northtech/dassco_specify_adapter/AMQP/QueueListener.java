@@ -9,6 +9,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 public abstract class QueueListener extends AbstractExecutionThreadService {
     private static final Logger LOGGER = LoggerFactory.getLogger(QueueListener.class);
@@ -20,6 +22,8 @@ public abstract class QueueListener extends AbstractExecutionThreadService {
     String queueName;
     QueueConnection connection;
     QueueSession session;
+    Instant lastRestart = null;
+    Instant lastError = null;
 
     public QueueListener(KeycloakService keycloakService, AMQPConfig amqpConfig, String queueName) {
         this.keycloakService = keycloakService;
@@ -47,6 +51,10 @@ public abstract class QueueListener extends AbstractExecutionThreadService {
     @Override
     protected void startUp() {
         LOGGER.info("Initializing {}", this.getClass().getSimpleName());
+        initSession();
+    }
+
+    protected void initSession() {
         try {
             QueueConnection queueConnection = getQueueConnectionFactory().createQueueConnection("", token());
             queueConnection.setExceptionListener(new MyExceptionListener());
@@ -54,18 +62,20 @@ public abstract class QueueListener extends AbstractExecutionThreadService {
             connection = queueConnection;
             System.out.println(token());
             session = queueConnection.createQueueSession(false, Session.DUPS_OK_ACKNOWLEDGE);
+            lastRestart = Instant.now();
         } catch (JMSException e) {
             throw new RuntimeException("QueueListener failed to setup the connection", e);
         }
     }
 
-    private QueueConnectionFactory getQueueConnectionFactory(){
-        return (QueueConnectionFactory)getConnectionFactory();
+    private QueueConnectionFactory getQueueConnectionFactory() {
+        return (QueueConnectionFactory) getConnectionFactory();
     }
 
     private ConnectionFactory getConnectionFactory() {
         RMQConnectionFactory rmqCF = new RMQConnectionFactory() {
             private static final long serialVersionUID = 1L;
+
             @Override
             public Connection createConnection(String userName, String password) throws JMSException {
                 if (!isSecure()) {
@@ -94,16 +104,35 @@ public abstract class QueueListener extends AbstractExecutionThreadService {
         MessageConsumer messageConsumer = session.createConsumer(queue);
 
         while (isRunning()) {
-            try {
-                Message message = messageConsumer.receive(2000L);
-                if (message != null) {
-                    LOGGER.info("Received a message on {}", this.getClass().getSimpleName());
+            if (lastRestart.plus(58, ChronoUnit.MINUTES).isBefore(Instant.now())) {
+                try {
+                    if (lastError == null || lastError.plus(1, ChronoUnit.MINUTES).isBefore(Instant.now())) {
+                        lastError = null;
+                        LOGGER.info("Restarting queue {}", queueName());
+                        closeSession();
+                        initSession();
+                        queue = session.createQueue(queueName());
+                        messageConsumer = session.createConsumer(queue);
+                        lastRestart = Instant.now();
+                    } else {
+                        Thread.sleep(5000);
+                    }
+                } catch (Exception e) {
+                    lastError = Instant.now();
+                    LOGGER.warn("Failed restart queue");
                 }
-                if (message instanceof TextMessage) {
-                    handleMessage(((TextMessage) message).getText());
+            } else {
+                try {
+                    Message message = messageConsumer.receive(2000L);
+                    if (message != null) {
+                        LOGGER.info("Received a message on {}", this.getClass().getSimpleName());
+                    }
+                    if (message instanceof TextMessage) {
+                        handleMessage(((TextMessage) message).getText());
+                    }
+                } catch (Exception e) {
+                    LOGGER.error("Error while receiving messages", e);
                 }
-            } catch (Exception e) {
-                LOGGER.error("Error while receiving messages", e);
             }
         }
     }
@@ -113,6 +142,10 @@ public abstract class QueueListener extends AbstractExecutionThreadService {
     @Override
     protected void shutDown() {
         LOGGER.info("Shutting down {}", this.getClass().getSimpleName());
+        closeSession();
+    }
+
+    void closeSession() {
         try {
             if (session != null) {
                 session.close();
@@ -129,6 +162,7 @@ public abstract class QueueListener extends AbstractExecutionThreadService {
 
     private static class MyExceptionListener implements ExceptionListener {
         private Logger logger = LoggerFactory.getLogger(MyExceptionListener.class);
+
         @Override
         public void onException(JMSException exception) {
             logger.info("Connection ExceptionListener fired, exiting");

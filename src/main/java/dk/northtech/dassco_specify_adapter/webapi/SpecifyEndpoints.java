@@ -30,6 +30,6 @@ public class SpecifyEndpoints {
     @RolesAllowed({SecurityRoles.ADMIN, SecurityRoles.DEVELOPER, SecurityRoles.SERVICE, SecurityRoles.USER})
     public Response pushImageToSpecify(@PathParam("assetGuid") String assetGuid, @Context SecurityContext securityContext){
         User user = UserMapper.from(securityContext);
-        return this.specifyEndpointService.pushImageToSpecify(assetGuid, user);
+        return this.specifyEndpointService.pushImageToSpecify(null);
     }
 }

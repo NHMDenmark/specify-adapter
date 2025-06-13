@@ -26,15 +26,10 @@ class QueueTests {
     @Test
     @Disabled // only works if the queue is running in the other app. is just for manual testing purposes.
     public void adapter() {
-        List<String> guids = new ArrayList<>();
-        guids.add("test_guid");
-        Acknowledge acknowledge = new Acknowledge(guids, AcknowledgeStatus.SUCCESS, "such good", Instant.now());
-        ObjectWriter ow = new ObjectMapper().registerModule(new JavaTimeModule()).writer().withDefaultPrettyPrinter();
-        try {
-            String json = ow.writeValueAsString(acknowledge);
-            this.queueBroadcaster.sendMessage(json);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
+        String guid = "test_guid";
+//        guids.add("test_guid");
+        Acknowledge acknowledge = new Acknowledge(guid, AcknowledgeStatus.SUCCESS, "such good", Instant.now());
+
+        this.queueBroadcaster.sendMessage(acknowledge);
     }
 }

@@ -1,7 +1,13 @@
 package dk.northtech.dassco_specify_adapter.services;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import dk.northtech.dassco_specify_adapter.assets.SpecifyProperties;
-import dk.northtech.dassco_specify_adapter.domain.Asset;
+import dk.northtech.dassco_specify_adapter.domain.Collection;
+import dk.northtech.dassco_specify_adapter.domain.CollectionObjectAttachment;
+import dk.northtech.dassco_specify_adapter.domain.UploadParams;
 import dk.northtech.dassco_specify_adapter.domain.User;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.Response;
@@ -15,6 +21,8 @@ import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.tika.Tika;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -24,6 +32,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,30 +42,38 @@ public class SpecifyEndpointService {
     SpecifyProperties specifyProperties;
     AssetFileService assetFileService;
     AssetService assetService;
+    KeycloakService keycloakService;
+    ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule()).configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    ObjectWriter writer = new ObjectMapper().registerModule(new JavaTimeModule()).writer().withDefaultPrettyPrinter();
+
+    private static final Logger logger = LoggerFactory.getLogger(SpecifyEndpointService.class);
 
     @Inject
     public SpecifyEndpointService(SpecifyProperties specifyProperties,
                                   AssetFileService assetFileService,
-                                  AssetService assetService){
+                                  AssetService assetService,
+                                  KeycloakService keycloakService) {
         this.specifyProperties = specifyProperties;
         this.assetFileService = assetFileService;
         this.assetService = assetService;
+        this.keycloakService = keycloakService;
     }
 
-    public Response pushImageToSpecify(String assetGuid, User user){
+    public Response pushImageToSpecify(CollectionObjectAttachment collectionObjectAttachment) {
         // 1. Get Asset Metadata:
-        Asset erdaAsset = assetService.getAsset(assetGuid, user);
+//        Asset erdaAsset = assetService.getAsset(assetGuid, user);
         // 2: Log In to Specify:
         Map<String, Object> loginMap = login();
         String csrfToken = loginMap.get("csrftoken").toString();
         // 3: Get Asset Institution and Collection Mapping:
-        String institution = erdaAsset.institution;
-        String collection = erdaAsset.collection;
+        String institution = collectionObjectAttachment.ars_institution;
+        String collection = collectionObjectAttachment.ars_collection;
         String collectionToSearch = institution + " " + collection;
         Object collectionObj = loginMap.get("collections");
+
         int specifyCollectionId = 0;
-        if (collectionObj instanceof JSONObject collections){
-            if (collections.has(collectionToSearch)){
+        if (collectionObj instanceof JSONObject collections) {
+            if (collections.has(collectionToSearch)) {
                 specifyCollectionId = collections.getInt(collectionToSearch);
             }
         }
@@ -64,69 +81,77 @@ public class SpecifyEndpointService {
         List<HttpCookie> cookies = loginToCollection(specifyCollectionId, csrfToken);
         String sessionId = "";
         String collectionId = "";
-        for (HttpCookie cookie : cookies){
-            if (cookie.getName().equalsIgnoreCase("csrftoken")){
+        for (HttpCookie cookie : cookies) {
+            if (cookie.getName().equalsIgnoreCase("csrftoken")) {
                 csrfToken = cookie.getValue();
             }
-            if (cookie.getName().equalsIgnoreCase("sessionid")){
+            if (cookie.getName().equalsIgnoreCase("sessionid")) {
                 sessionId = cookie.getValue();
             }
-            if (cookie.getName().equalsIgnoreCase("collection")){
+            if (cookie.getName().equalsIgnoreCase("collection")) {
                 collectionId = cookie.getValue();
             }
         }
         // 5: Get Collection Object (if it exists!):
-        String barcode = erdaAsset.specimens.getFirst().barcode();
+        String barcode = collectionObjectAttachment.ars_barcode;
         JSONObject collectionObject = getCollectionObject(csrfToken, collectionId, sessionId, barcode);
+
+        String token = keycloakService.getUserServiceToken();
         // 6: Get files in ERDA:
-        List<String> files = assetFileService.getAssetFiles(assetGuid, user);
+        List<String> files = assetFileService.getAssetFiles(collectionObjectAttachment.ars_assetguid, token);
         // 7: Sanitize the list of files to only get the filenames:
         List<String> filenames = files.stream().map(url -> url.substring(url.lastIndexOf('/') + 1)).toList();
         // 8: Get Upload Params:
-        JSONArray uploadParams = getUploadParams(csrfToken, sessionId, collectionId, filenames);
-        // 9: Get Collection Info:
-        JSONObject collectionInfo = getCollectionInfo(csrfToken, sessionId, collectionId);
-        String collectionName = collectionInfo.getString("collectionname");
-        //String collectionResource = collectionInfo.getString("resource_uri");
-        //String collectionDiscipline = collectionInfo.getString("discipline");
-        Tika tika = new Tika();
-        JSONArray collectionObjectAttachments = new JSONArray();
-        // 10: For each File in filenames, get the Stream.
-        for (int i = 0; i < files.size(); i++){
-            // 10.a: Get institution, collection, asset and path:
-            String[] parts = files.get(i).split("/");
-            String fileInstitution = parts[2];
-            String fileCollection = parts[3];
-            String asset = parts[4];
-            String path = parts[5];
-            String filename = parts[parts.length - 1];
-            // 10.b: Get token and attachmentLocation from the uploadParams:
-            JSONObject uploadParam = uploadParams.getJSONObject(i);
-            String attachmentLocation = uploadParam.getString("attachmentLocation");
-            String attachmentToken = uploadParam.getString("token");
-            // 10.c: Fetch the file:
-            InputStream inputStream = assetFileService.fetchFiles(fileInstitution, fileCollection, asset, path, user);
-            // 10.d: Upload file to the asset server:
-            uploadFile(attachmentToken, attachmentLocation, collectionName, inputStream, filename);
-            // 10.e: Get mime type
-            String mimeType = tika.detect(filename);
-            // 10.f: Make the attachment resource:
-            JSONObject attachmentResource = createAttachmentResource(attachmentLocation, mimeType, filename, i);
-            collectionObjectAttachments.put(attachmentResource);
-        }
-        // 11: Add Attachments to CollectionObject:
-        collectionObject.put("collectionobjectattachments", collectionObjectAttachments);
-        // 12: PUT new collectionObject:
-        int collectionObjectId = collectionObject.getInt("id");
-        putCollectionObject(collectionId, csrfToken, sessionId, collectionObjectId, collectionObject);
+//        List<UploadParams> uploadParams = getUploadParams(csrfToken, sessionId, collectionId, filenames);
+//        // 9: Get Collection Info:
+//        Collection collectionInfo = getCollectionInfo(csrfToken, sessionId, collectionId);
+//        String collectionName = collectionInfo.collectionname;
+//        String collectionResource = collectionInfo.resource_uri;
+////        String collectionDiscipline = collectionInfo.discipline;
+//        Tika tika = new Tika();
+////        JSONArray collectionObjectAttachments = new JSONArray();
+//        // 10: For each File in filenames, get the Stream.
+////        for (int i = 0; i < files.size(); i++) {
+//        // 10.a: Get institution, collection, asset and path:
+//        //assume only one file per metadata
+//        String[] parts = files.get(0).split("/");
+//        String fileInstitution = parts[2];
+//        String fileCollection = parts[3];
+//        String asset = parts[4];
+//        String path = parts[5];
+//        String filename = parts[parts.length - 1];
+//        // 10.b: Get token and attachmentLocation from the uploadParams:
+////            JSONObject uploadParam = uploadParams.getJSONObject(i);
+//        UploadParams uploadParam = uploadParams.get(0);
+//        String attachmentLocation = uploadParam.attachmentLocation;
+//        String attachmentToken = uploadParam.token;
+//        // 10.c: Fetch the file:
+//        InputStream inputStream = assetFileService.fetchFiles(fileInstitution, fileCollection, asset, path, user);
+//        // 10.d: Upload file to the asset server:
+//        uploadFile(attachmentToken, attachmentLocation, collectionName, inputStream, filename);
+//        // 10.e: Get mime type
+//        String mimeType = tika.detect(filename);
+//        // 10.f: Make the attachment resource:
+//
+//        // This doesnt match mapping
+//        collectionObjectAttachment.attachment.attachmentlocation = uploadParam.attachmentLocation;
+////        JSONObject attachmentResource = createAttachmentResource(attachmentLocation, mimeType, filename, i);
+////        collectionObjectAttachments.put(attachmentResource);
+////        }
+//        // 11: Add Attachments to CollectionObject:
+////        collectionObject.put("collectionobjectattachments", collectionObjectAttachments);
+//        // 12: PUT new collectionObject:
+//        int collectionObjectId = collectionObject.getInt("id");
+//        putCollectionObject(collectionId, csrfToken, sessionId, collectionObjectId, collectionObject);
+//        postCollectionObjectAttachment(collectionObjectAttachment, collectionObjectId, csrfToken,sessionId);
         // 13: Log out the user:
         logout(csrfToken, collectionId);
         return Response.status(200)
-                .entity("Attachment from " + erdaAsset.asset_guid + " uploaded successfully to Collection Object with ID: " + collectionObjectId).build();
+                .entity("Attachment from " + collectionObjectAttachment.ars_assetguid + " uploaded successfully to Collection Object with ID: " + 666).build();
     }
 
 
-    public Map<String, Object> login(){
+    public Map<String, Object> login() {
 
         CookieManager cookieManager = new CookieManager();
         cookieManager.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
@@ -143,11 +168,11 @@ public class SpecifyEndpointService {
 
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200){
+            if (response.statusCode() == 200) {
                 Map<String, Object> responseMap = new HashMap<>();
                 List<HttpCookie> cookies = ((CookieManager) CookieHandler.getDefault()).getCookieStore().getCookies();
-                for (HttpCookie cookie : cookies){
-                    if ("csrftoken".equalsIgnoreCase(cookie.getName())){
+                for (HttpCookie cookie : cookies) {
+                    if ("csrftoken".equalsIgnoreCase(cookie.getName())) {
                         responseMap.put("csrftoken", cookie.getValue());
                         JSONObject jsonObject = new JSONObject(response.body());
                         responseMap.put("collections", jsonObject.getJSONObject("collections"));
@@ -156,6 +181,8 @@ public class SpecifyEndpointService {
                 }
                 throw new RuntimeException("There was no csrftoken cookie in the response.");
             } else {
+                logger.error("There was an error while trying to login using the specify API, response code: " + response.statusCode());
+                System.out.println(response.headers().toString());
                 throw new RuntimeException("There has been an error logging in: " + response.body());
             }
         } catch (IOException | InterruptedException e) {
@@ -163,7 +190,7 @@ public class SpecifyEndpointService {
         }
     }
 
-    public List<HttpCookie> loginToCollection(int collection, String csrfToken){
+    public List<HttpCookie> loginToCollection(int collection, String csrfToken) {
 
         CookieManager cookieManager = new CookieManager();
         cookieManager.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
@@ -190,20 +217,20 @@ public class SpecifyEndpointService {
 
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 204){
+            if (response.statusCode() == 204) {
                 CookieStore cookieStore = cookieManager.getCookieStore();
                 List<HttpCookie> cookies = cookieStore.getCookies();
                 return cookies;
-            } else if (response.statusCode() == 403){
+            } else if (response.statusCode() == 403) {
                 throw new RuntimeException("Forbidden. There has been a problem logging into the Collection. Most likely scenario is the CSRF Token being wrong.");
             }
             throw new RuntimeException("There has been an error.");
-        } catch (IOException | InterruptedException e){
+        } catch (IOException | InterruptedException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public String getAgent(String csrfToken, String collectionId, String sessionId){
+    public String getAgent(String csrfToken, String collectionId, String sessionId) {
         HttpClient httpClient = HttpClient.newBuilder().build();
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -216,22 +243,22 @@ public class SpecifyEndpointService {
 
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200){
+            if (response.statusCode() == 200) {
                 JSONObject jsonResponse = new JSONObject(response.body());
                 JSONObject agent = jsonResponse.getJSONObject("agent");
                 return agent.getString("resource_uri");
 
-            } else if (response.statusCode() == 403){
+            } else if (response.statusCode() == 403) {
                 throw new RuntimeException("Forbidden. Most likely scenario is a mistake with the CSRF Token.");
             } else {
                 throw new RuntimeException("There was an error, response code was: " + response.statusCode());
             }
-        } catch (IOException | InterruptedException e){
+        } catch (IOException | InterruptedException e) {
             throw new RuntimeException("There was an error fetching data from the logged in user: ", e);
         }
     }
 
-    public void logout(String csrfToken, String collectionId){
+    public void logout(String csrfToken, String collectionId) {
         HttpClient httpClient = HttpClient.newBuilder().build();
 
         String requestBody = String.format(
@@ -251,15 +278,15 @@ public class SpecifyEndpointService {
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-            if (response.statusCode() == 403){
+            if (response.statusCode() == 403) {
                 throw new RuntimeException("Forbidden. Most likely scenario is an error with the CSRF Token");
             }
-        } catch (IOException | InterruptedException e){
+        } catch (IOException | InterruptedException e) {
             throw new RuntimeException();
         }
     }
 
-    public JSONObject createCollectionObject(String csrfToken, String collectionId, String sessionId, JSONObject collectionObject){
+    public JSONObject createCollectionObject(String csrfToken, String collectionId, String sessionId, JSONObject collectionObject) {
 
         HttpClient httpClient = HttpClient.newBuilder().build();
 
@@ -274,9 +301,9 @@ public class SpecifyEndpointService {
 
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 201){
+            if (response.statusCode() == 201) {
                 return new JSONObject(response.body());
-            } else if (response.statusCode() == 403){
+            } else if (response.statusCode() == 403) {
                 throw new RuntimeException("Forbidden. Most likely scenario is that something is wrong with the CSRF Cookie.");
             } else {
                 throw new RuntimeException("There was an error creating the Collection Object: " + response.body());
@@ -286,7 +313,7 @@ public class SpecifyEndpointService {
         }
     }
 
-    public JSONArray getUploadParams(String csrfToken, String sessionId, String collectionId, List<String> filenames){
+    public List<UploadParams> getUploadParams(String csrfToken, String sessionId, String collectionId, List<String> filenames) {
 
         HttpClient httpClient = HttpClient.newBuilder().build();
 
@@ -303,10 +330,10 @@ public class SpecifyEndpointService {
 
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200){
-                JSONArray jsonResponse = new JSONArray(response.body());
-                return jsonResponse;
-            } else if (response.statusCode() == 403){
+            if (response.statusCode() == 200) {
+                String json = response.body();
+                return Arrays.asList(mapper.readValue(json, UploadParams[].class));
+            } else if (response.statusCode() == 403) {
                 throw new RuntimeException("Forbidden. Most likely scenario is a fail in the CSRF token.");
             } else {
                 throw new RuntimeException("Something failed when getting the Upload Params");
@@ -317,7 +344,7 @@ public class SpecifyEndpointService {
     }
 
     public JSONObject createCollectionObjectJSONObject(String catalogNumber, JSONArray collectionObjectAttachments,
-                                                       String agent, String collectionResource, String collectionDiscipline){
+                                                       String agent, String collectionResource, String collectionDiscipline) {
         // CataloguedDate: Today (YYYY-MM-DD)
         // Discipline: We are using Entomology for this. Find out how to know.
         // Collection. NHMD Entomology. Hardcoded.
@@ -377,7 +404,7 @@ public class SpecifyEndpointService {
         return jsonObject;
     }
 
-    public JSONObject getCollectionInfo(String csrfToken, String sessionId, String collectionId){
+    public Collection getCollectionInfo(String csrfToken, String sessionId, String collectionId) {
         HttpClient httpClient = HttpClient.newBuilder().build();
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -389,9 +416,9 @@ public class SpecifyEndpointService {
 
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200){
+            if (response.statusCode() == 200) {
                 // Saving the Collection Object Name for later use:
-                return new JSONObject(response.body());
+                return mapper.readValue(response.body(), Collection.class);
             } else {
                 throw new RuntimeException("There was an error getting the Collection Name");
             }
@@ -400,8 +427,8 @@ public class SpecifyEndpointService {
         }
     }
 
-    public void uploadFile(String attachmentToken, String attachmentLocation, String collectionName, InputStream inputStream, String filename){
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()){
+    public void uploadFile(String attachmentToken, String attachmentLocation, String collectionName, InputStream inputStream, String filename) {
+        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
 
             HttpPost uploadFile = new HttpPost(this.specifyProperties.assetServer() + "/fileupload");
             MultipartEntityBuilder builder = MultipartEntityBuilder.create();
@@ -419,19 +446,19 @@ public class SpecifyEndpointService {
 
                 String responseBody = EntityUtils.toString(entity);
 
-                if (status == 200){
+                if (status == 200) {
                     return classicHttpResponse.getEntity();
                 } else {
                     throw new IOException("This happened: " + classicHttpResponse.getEntity().toString());
                 }
             });
-        } catch (IOException e){
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
     //TODO Mapping here!
-    public JSONObject createAttachmentResource(String attachmentLocation, String mimeType, String filename, int index){
+    public JSONObject createAttachmentResource(String attachmentLocation, String mimeType, String filename, int index) {
         JSONObject attachment = new JSONObject();
         attachment.put("attachmentlocation", attachmentLocation);
         attachment.put("mimetype", mimeType);
@@ -451,7 +478,7 @@ public class SpecifyEndpointService {
         return attachmentResource;
     }
 
-    public JSONObject getCollectionObject(String csrfToken, String collectionId, String sessionId, String barcode){
+    public JSONObject getCollectionObject(String csrfToken, String collectionId, String sessionId, String barcode) {
         HttpClient httpClient = HttpClient.newBuilder().build();
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -463,10 +490,10 @@ public class SpecifyEndpointService {
 
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200){
+            if (response.statusCode() == 200) {
                 JSONObject responseObject = new JSONObject(response.body());
                 JSONArray objectsArray = responseObject.getJSONArray("objects");
-                if (!objectsArray.isEmpty()){
+                if (!objectsArray.isEmpty()) {
                     return objectsArray.getJSONObject(0);
                 } else {
                     throw new RuntimeException("The Specimen does not exist in Specify. Please create a Collection Object for this Specimen.");
@@ -479,7 +506,7 @@ public class SpecifyEndpointService {
         }
     }
 
-    public void putCollectionObject(String collectionId, String csrfToken, String sessionId, int collectionObjectId, JSONObject collectionObject){
+    public void putCollectionObject(String collectionId, String csrfToken, String sessionId, int collectionObjectId, JSONObject collectionObject) {
         HttpClient httpClient = HttpClient.newBuilder().build();
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -501,10 +528,35 @@ public class SpecifyEndpointService {
         }
     }
 
+    public void postCollectionObjectAttachment(CollectionObjectAttachment collectionObjectAttachment
+            , int collectionObjectId
+            , String csrfToken
+            , String sessionId) {
+        HttpClient httpClient = HttpClient.newBuilder().build();
+        try {
+            String json = writer.writeValueAsString(collectionObjectAttachment);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(this.specifyProperties.rootUrl() + "/api/specify/collectionobjectattachment/"))
+                    .header("Cookie", "collection=" + collectionObjectId + ";csrftoken=" + csrfToken + ";sessionid=" + sessionId)
+                    .header("X-CSRFToken", csrfToken)
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .build();
+
+            System.out.println(request);
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                throw new RuntimeException("There was an error. Status: " + response.statusCode() + ". Error: " + response.body());
+            }
+        } catch (IOException | InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 }
 
 // TODO:
 // Ask about Collections. Do they already know the collection number? Should I pass it? For now, it's hardcoded.
-// Should username and password for login into collection be passed as a POST body or should they be in the application.properties file?
+// Should username and password for login into collection be passed as a POST message or should they be in the application.properties file?
 // Preparations? I have hardcoded preparation: none for this, but how will it work later on?
 // Methods for CREATING a new Collection Object from scratch exist in the code. I wouldn't delete them for now, maybe they will be useful later.
