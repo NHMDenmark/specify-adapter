@@ -106,7 +106,7 @@ public class QueueBroadcaster extends AbstractIdleService {
 
     public void sendMessage(Acknowledge acknowledge) {
         synchronized (this) {
-            if (lastRestart.plus(1, ChronoUnit.MINUTES).isBefore(Instant.now())) {
+            if (lastRestart.plus(58, ChronoUnit.MINUTES).isBefore(Instant.now())) {
                 LOGGER.info("Refreshing sesh");
                 this.closeSession();
                 this.init();
