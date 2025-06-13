@@ -1,0 +1,25 @@
+services:
+  app:
+    build: .
+    image: nhmdenmark/dassco-file-proxy:2.0.0
+    ports:
+      - 8080:8080
+    environment:
+      KEYCLOAK_REALM: dassco
+      KEYCLOAK_AUTH_SERVER_URL: http://localhost:8083/
+      KEYCLOAK_RESOURCE: dassco-asset-service
+      FILE_PROXY_ROOT_URL: http://localhost:8080/
+      ACKNOWLEDGE_QUEUE: acknowledge-queue
+      ASSET_QUEUE: asset-queue
+      AMQP_HOST_NAME: localhost
+      AMQP_SECURE: false
+      ASSET_SERVICE_ROOT_URL: http://localhost:8084/ars
+      SPECIFY_URL: https://specify-test3.science.ku.dk
+      SPECIFY_ASSET_SERVER: https://testify-media.science.ku.dk
+      SPECIFY_MAPPINGS_LOCATION: /mappings
+      SPECIFY_USERNAME: username
+      SPECIFY_PASSWORD: pass
+      KEYCLOAK_SERVICE_USER_CLIENT_ID: http://localhost:8083/
+      KEYCLOAK_SERVICE_USER_CLIENT_SECRET: Shhh
+    volumes:
+      - ./private.pem:/private.pem
