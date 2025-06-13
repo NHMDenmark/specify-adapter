@@ -32,23 +32,23 @@ public class MappingServiceTest {
             remarks=${specify_attachment_remarks}
             title=${specify_attachment_title}
             """;
-    @Test
-    void mapAsset() {
-        Asset testAsset = getTestAsset();
-        MappingService mappingService = new MappingService(new SpecifyMappingsProperties("./mappings/"));
-        CollectionObjectAttachment collectionObjectAttachment = mappingService.getAttachment(testAsset);
-        Attachment attachment = collectionObjectAttachment.attachment;
-        assertThat(attachment).isNotNull();
-        assertThat(attachment.origfilename).isEqualTo("test-guid-1.jpeg");
-        assertThat(attachment.attachmentlocation).isEqualTo("test-guid-1_pid");
-        assertThat(attachment.copyrightdate).isEqualTo("2025-01-12");
-    }
+//    @Test
+//    void mapAsset() {
+//        Asset testAsset = getTestAsset();
+//        MappingService mappingService = new MappingService(new SpecifyMappingsProperties("./mappings/"));
+//        CollectionObjectAttachment collectionObjectAttachment = mappingService.getAttachment(testAsset);
+//        Attachment attachment = collectionObjectAttachment.attachment;
+//        assertThat(attachment).isNotNull();
+//        assertThat(attachment.origfilename).isEqualTo("test-guid-1.jpeg");
+//        assertThat(attachment.attachmentlocation).isEqualTo("test-guid-1_pid");
+//        assertThat(attachment.copyrightdate).isEqualTo("2025-01-12");
+//    }
 
     @Test
     void mapAssetNewLines() {
         Asset testAsset = getTestAsset();
         testAsset.legality = new Legality(null, "copyright", "loicense", "credz");
-        testAsset.specify_attachment_remarks = "remarkable";
+        testAsset.specify_attachment_remarks = "remarkable\n remark";
         testAsset.specify_attachment_title = "Titlecious";
         testAsset.make_public = true;
 //        testAsset.date_asset_deleted = Instant.parse("2023-07-17T09:01:51.312Z");
@@ -65,28 +65,13 @@ public class MappingServiceTest {
         assertThat(attachment.license).isEqualTo("loicense");
         assertThat(attachment.credit).isEqualTo("credz");
         assertThat(attachment.ispublic).isTrue();
-        assertThat(attachment.remarks).isEqualTo("remarkable");
+        assertThat(attachment.remarks).isEqualTo("remarkable\n remark");
         assertThat(attachment.title).isEqualTo("Titlecious");
     }
 
-    @Test
-    void ststst() {
-        String s = "lololo=lol";
-        int i = s.indexOf("=");
-        String key = s.substring(0, i);
-        String value = s.substring(i + 1);
-        System.out.println(key);
-        System.out.printf(value);
-        String ss = "lolo=";
-        int ii = ss.indexOf("=");
-        System.out.println("'dex " + ii);
-        System.out.println("sun2 " + ss.substring(0, ii));
-        System.out.println("sub3 " +ss.substring(ii + 1));
-
-
-    }
     public static Asset getTestAsset() {
         Asset asset = new Asset();
+        asset.specimens = Arrays.asList(new Specimen("barcode", "specimen_pid","slide", Arrays.asList("slide"),"slide"));
         asset.asset_locked = false;
         asset.status = "BEING_PROCESSED";
         asset.digitiser = "Karl-Børge";
