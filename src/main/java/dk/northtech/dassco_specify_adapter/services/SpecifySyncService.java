@@ -1,12 +1,14 @@
-package dk.northtech.dassco_specify_adapter.domain;
+package dk.northtech.dassco_specify_adapter.services;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import dk.northtech.dassco_specify_adapter.AMQP.QueueBroadcaster;
-import dk.northtech.dassco_specify_adapter.services.MappingService;
-import dk.northtech.dassco_specify_adapter.services.SpecifyEndpointService;
+import dk.northtech.dassco_specify_adapter.domain.ARSUpdate;
+import dk.northtech.dassco_specify_adapter.domain.Acknowledge;
+import dk.northtech.dassco_specify_adapter.domain.AcknowledgeStatus;
+import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObjectAttachment;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,7 +36,7 @@ public class SpecifySyncService {
         try {
             ARSUpdate arsUpdate = mapper.readValue(arsUpdateJson, ARSUpdate.class);
             CollectionObjectAttachment attachment = mappingService.getAttachment(arsUpdate.asset);
-//            specifyEndpointService.pushImageToSpecify(attachment);
+            specifyEndpointService.pushImageToSpecify(attachment);
             Acknowledge ack = new Acknowledge(attachment.ars_assetguid, AcknowledgeStatus.FILE_UPLOAD_ERROR, "Failed to sync specify: Not implemented yet", Instant.now());
             queueBroadcaster.sendMessage(ack);
         } catch (JsonProcessingException e) {

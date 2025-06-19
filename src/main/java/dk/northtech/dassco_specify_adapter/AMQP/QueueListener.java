@@ -60,7 +60,6 @@ public abstract class QueueListener extends AbstractExecutionThreadService {
             queueConnection.setExceptionListener(new MyExceptionListener());
             queueConnection.start();
             connection = queueConnection;
-            System.out.println(token());
             session = queueConnection.createQueueSession(false, Session.DUPS_OK_ACKNOWLEDGE);
             lastRestart = Instant.now();
         } catch (JMSException e) {

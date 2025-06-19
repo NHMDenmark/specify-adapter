@@ -1,12 +1,14 @@
-package dk.northtech.dassco_specify_adapter.domain;
+package dk.northtech.dassco_specify_adapter.domain.specify;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import dk.northtech.dassco_specify_adapter.domain.Attachment;
 
 public class CollectionObjectAttachment {
     public Integer ordinal;
     public final String _tableName = "CollectionObjectAttachment";
     public Attachment attachment;
-    public Long collectionmemberid;
+    public Integer collectionmemberid;
+    public String collectionobject;
     @JsonIgnore
     public String ars_collection;
     @JsonIgnore

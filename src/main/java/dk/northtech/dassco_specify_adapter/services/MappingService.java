@@ -2,6 +2,7 @@ package dk.northtech.dassco_specify_adapter.services;
 
 import dk.northtech.dassco_specify_adapter.assets.SpecifyMappingsProperties;
 import dk.northtech.dassco_specify_adapter.domain.*;
+import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObjectAttachment;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

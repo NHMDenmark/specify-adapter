@@ -1,4 +1,4 @@
-package dk.northtech.dassco_specify_adapter.domain;
+package dk.northtech.dassco_specify_adapter.domain.specify;
 
 import java.util.List;
 

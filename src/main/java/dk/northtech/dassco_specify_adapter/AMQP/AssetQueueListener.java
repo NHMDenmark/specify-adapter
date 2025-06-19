@@ -1,13 +1,9 @@
 package dk.northtech.dassco_specify_adapter.AMQP;
 
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import dk.northtech.dassco_specify_adapter.configuration.AMQPConfig;
-import dk.northtech.dassco_specify_adapter.domain.ARSUpdate;
-import dk.northtech.dassco_specify_adapter.domain.SpecifySyncService;
+import dk.northtech.dassco_specify_adapter.services.SpecifySyncService;
 import dk.northtech.dassco_specify_adapter.services.KeycloakService;
-import dk.northtech.dassco_specify_adapter.services.SpecifyEndpointService;
 import jakarta.inject.Inject;
 import org.springframework.stereotype.Service;
 

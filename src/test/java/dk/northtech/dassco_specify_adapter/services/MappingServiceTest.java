@@ -2,17 +2,15 @@ package dk.northtech.dassco_specify_adapter.services;
 
 import dk.northtech.dassco_specify_adapter.assets.SpecifyMappingsProperties;
 import dk.northtech.dassco_specify_adapter.domain.*;
+import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObjectAttachment;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 import static com.google.common.truth.Truth.assertThat;
-import static org.junit.jupiter.api.Assertions.*;
 
 public class MappingServiceTest {
 
