@@ -110,7 +110,6 @@ public class KeycloakService {
                     .send(request, HttpResponse.BodyHandlers.ofString());
 
             String json = response.body();
-            System.out.println(response);
             keycloakToken = objectMapper.readValue(json, KeycloakToken.class);
             return keycloakToken;
         } catch (URISyntaxException | InterruptedException | IOException e) {

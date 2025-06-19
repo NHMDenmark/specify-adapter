@@ -72,7 +72,6 @@ public class SpecifyEndpointService {
 //        Object collectionObj = loginMap.get("collections");
 
         int specifyCollectionId = 0;
-        loginInfo.collections.keySet().forEach(x -> System.out.println(x));
 //        if (collectionObj instanceof JSONObject collections) {
         if (loginInfo.collections.containsKey(specifyCollectionName)) {
             specifyCollectionId = loginInfo.collections.get(specifyCollectionName);
@@ -206,7 +205,6 @@ public class SpecifyEndpointService {
 //        );
         try {
             String requestBody = writer.writeValueAsString(credentials);
-            System.out.println(requestBody);
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(this.specifyProperties.rootUrl() + "/context/login/"))
