@@ -8,8 +8,10 @@ import dk.northtech.dassco_specify_adapter.AMQP.QueueBroadcaster;
 import dk.northtech.dassco_specify_adapter.domain.ARSUpdate;
 import dk.northtech.dassco_specify_adapter.domain.Acknowledge;
 import dk.northtech.dassco_specify_adapter.domain.AcknowledgeStatus;
+import dk.northtech.dassco_specify_adapter.domain.SpecifyAdapterException;
 import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObjectAttachment;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.core.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -36,9 +38,15 @@ public class SpecifySyncService {
         try {
             ARSUpdate arsUpdate = mapper.readValue(arsUpdateJson, ARSUpdate.class);
             CollectionObjectAttachment attachment = mappingService.getAttachment(arsUpdate.asset);
-            specifyEndpointService.pushImageToSpecify(attachment);
-            Acknowledge ack = new Acknowledge(attachment.ars_assetguid, AcknowledgeStatus.FILE_UPLOAD_ERROR, "Failed to sync specify: Not implemented yet", Instant.now());
-            queueBroadcaster.sendMessage(ack);
+            Acknowledge acknowledge;
+            try {
+                AcknowledgeStatus acknowledgeStatus = specifyEndpointService.pushImageToSpecify(attachment);
+                queueBroadcaster.sendMessage(new Acknowledge(attachment.ars_assetguid, acknowledgeStatus, null, Instant.now()));
+            } catch (SpecifyAdapterException spx) {
+                queueBroadcaster.sendMessage(new Acknowledge(attachment.ars_assetguid, spx.status(), spx.getMessage(), Instant.now()));
+            } catch (Exception ex) {
+                queueBroadcaster.sendMessage(new Acknowledge(attachment.ars_assetguid, AcknowledgeStatus.UNKOWN_ERROR, "Error syncing file to specify, please check the logs of Specify Bridge", Instant.now()));
+            }
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }

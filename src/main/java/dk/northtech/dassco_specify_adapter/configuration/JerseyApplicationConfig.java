@@ -1,7 +1,6 @@
 package dk.northtech.dassco_specify_adapter.configuration;
 
 import dk.northtech.dassco_specify_adapter.webapi.AssetFiles;
-import dk.northtech.dassco_specify_adapter.webapi.SpecifyEndpoints;
 import dk.northtech.dassco_specify_adapter.webapi.exceptionmappers.DasscoIllegalActionExceptionMapper;
 import jakarta.ws.rs.ApplicationPath;
 import org.glassfish.jersey.server.ResourceConfig;
@@ -14,7 +13,6 @@ public class JerseyApplicationConfig extends ResourceConfig {
     public JerseyApplicationConfig(){
         register(RolesAllowedDynamicFeature.class);
         register(DasscoIllegalActionExceptionMapper.class);
-        register(SpecifyEndpoints.class);
         register(AssetFiles.class);
     }
 }

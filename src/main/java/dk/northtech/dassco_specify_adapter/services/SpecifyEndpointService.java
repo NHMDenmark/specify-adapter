@@ -60,7 +60,7 @@ public class SpecifyEndpointService {
         this.keycloakService = keycloakService;
     }
 
-    public Response pushImageToSpecify(CollectionObjectAttachment collectionObjectAttachment) {
+    public AcknowledgeStatus pushImageToSpecify(CollectionObjectAttachment collectionObjectAttachment) {
 
         // 2: Log In to Specify:
         LoginInfo loginInfo = login();
@@ -141,8 +141,7 @@ public class SpecifyEndpointService {
         postCollectionObjectAttachment(collectionObjectAttachment, specifyLogin);
         // 13: Log out the user:
         logout(specifyLogin);
-        return Response.status(200)
-                .entity("Attachment from " + collectionObjectAttachment.ars_assetguid + " uploaded successfully to Collection Object with ID: " + 666).build();
+        return AcknowledgeStatus.SUCCESS;
     }
 
 
