@@ -45,7 +45,7 @@ public class SpecifySyncService {
             } catch (SpecifyAdapterException spx) {
                 queueBroadcaster.sendMessage(new Acknowledge(attachment.ars_assetguid, spx.status(), spx.getMessage(), Instant.now()));
             } catch (Exception ex) {
-                queueBroadcaster.sendMessage(new Acknowledge(attachment.ars_assetguid, AcknowledgeStatus.UNKOWN_ERROR, "Error syncing file to specify, please check the logs of Specify Bridge", Instant.now()));
+                queueBroadcaster.sendMessage(new Acknowledge(attachment.ars_assetguid, AcknowledgeStatus.UNKNOWN_ERROR, "Error syncing file to specify, please check the logs of Specify Bridge", Instant.now()));
             }
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
