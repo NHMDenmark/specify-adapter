@@ -43,5 +43,6 @@ Next version - tasks :
   - using the delete end point delete the attachment
   - if there are multple atachment - postponed until webasset server is replaced
     
-7.  When syncing metadata, the values of metadata is overwritten to Specify
+7. ARS has presedence for all metadata fields for now
+ - When syncing metadata, the values of metadata is overwritten to Specify, that means the values in ARS are persisted in Specify in all cases
     
