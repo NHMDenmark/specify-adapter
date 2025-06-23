@@ -66,18 +66,16 @@ public class SpecifyEndpointService {
         LoginInfo loginInfo = login();
 //        String csrfToken = loginMap.get("csrftoken").toString();
         // 3: Get Asset Institution and Collection Mapping:
-        String institution = collectionObjectAttachment.ars_institution;
         String collection = collectionObjectAttachment.ars_collection;
-        String specifyCollectionName = institution + " " + collection;
-//        Object collectionObj = loginMap.get("collections");
+        //        Object collectionObj = loginMap.get("collections");
 
         int specifyCollectionId = 0;
 //        if (collectionObj instanceof JSONObject collections) {
-        if (loginInfo.collections.containsKey(specifyCollectionName)) {
-            specifyCollectionId = loginInfo.collections.get(specifyCollectionName);
+        if (loginInfo.collections.containsKey(collection)) {
+            specifyCollectionId = loginInfo.collections.get(collection);
         }
 //        }
-        logger.info("Logging into collection {}", specifyCollectionName);
+        logger.info("Logging into collection {}", collection);
         logger.info("Specify collection id {}", specifyCollectionId);
         // 4: Login to Collection:
         SpecifyCollectionLogin specifyLogin = loginToCollection(specifyCollectionId, loginInfo.csrftoken);
@@ -121,7 +119,7 @@ public class SpecifyEndpointService {
         // 10.c: Fetch the file:
         InputStream inputStream = assetFileService.fetchFiles(fileInstitution, fileCollection, asset, path, token);
         // 10.d: Upload file to the asset server:
-        uploadFile(attachmentToken, attachmentLocation, specifyCollectionName, inputStream, filename);
+        uploadFile(attachmentToken, attachmentLocation, collection, inputStream, filename);
         // 10.e: Get mime type
         String mimeType = tika.detect(filename);
         collectionObjectAttachment.collectionmemberid = collectionObject.collectionmemberid;

@@ -134,6 +134,9 @@ public class MappingService {
             file = new File(specifyMappingsProperties.location() + institution + "/default.conf");
         }
         try {
+            if(!file.exists()) {
+                throw new SpecifyAdapterException("No mapping found on: " + file, AcknowledgeStatus.MAPPING_ERROR);
+            }
             return Files.readString(Path.of(file.getPath()));
         } catch (IOException e) {
             throw new RuntimeException(e);
