@@ -15,14 +15,16 @@ Next version - tasks :
 
 ### Discussion and Decisions
 
-1. Multispecimen discussion: 2 Specimen - one sheet
+1. Multispecimen Object discussion: 2 Specimen - one sheet
 
  - Discision: Same asset(attachment)+ mapping(metadata) added to both collection objects(specimens) in Specify
  - Mapping of Specimen pid - decision postponed for later
  - Mapping of Asset pid -  location of the file(for now)
 
-2.  Multiple discussion: severals assets - one specimen
- - Discussion ponstponed for later
+2.  Multiple Object Specimen discussion: severals assets - one specimen
+ - Discision: Same asset(attachment)+ mapping(metadata) added to both collection objects(specimens) in Specify
+ - Mapping of Specimen pid - decision postponed for later
+ - Mapping of Asset pid -  location of the file(for now)
    
 3. When deleting an attachment from Specify _ Workpackage -Specify -> ARS Integration
  - Specify marks it as delete
