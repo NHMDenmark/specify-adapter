@@ -3,7 +3,8 @@ package dk.northtech.dassco_specify_adapter.domain.specify;
 import java.util.List;
 
 public class CollectionObject {
-    List<CollectionObjectAttachment> collectionobjectattachments;
+    public int id;
+    public List<CollectionObjectAttachment> collectionobjectattachments;
     public String altcatalognumber;
     public String availability;
     public String catalognumber;

@@ -28,7 +28,7 @@ class QueueTests {
     public void adapter() {
         String guid = "test_guid";
 //        guids.add("test_guid");
-        Acknowledge acknowledge = new Acknowledge(guid, AcknowledgeStatus.SUCCESS, "such good", Instant.now());
+        Acknowledge acknowledge = new Acknowledge(guid, AcknowledgeStatus.SUCCESS, "such good", Instant.now(),null);
 
         this.queueBroadcaster.sendMessage(acknowledge);
     }

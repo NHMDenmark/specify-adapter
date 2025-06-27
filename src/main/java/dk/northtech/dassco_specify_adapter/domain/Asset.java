@@ -63,7 +63,7 @@ public class Asset {
 
     public String specify_attachment_remarks;
     public String specify_attachment_title;
-
+    public Integer specify_attachment_id;
     public String metadata_updated_by;
     public List<Publication> external_publishers;
     public Legality legality;

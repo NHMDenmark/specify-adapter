@@ -6,13 +6,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import dk.northtech.dassco_specify_adapter.assets.SpecifyProperties;
-import dk.northtech.dassco_specify_adapter.domain.AcknowledgeStatus;
-import dk.northtech.dassco_specify_adapter.domain.Collection;
-import dk.northtech.dassco_specify_adapter.domain.SpecifyAdapterException;
+import dk.northtech.dassco_specify_adapter.domain.*;
 import dk.northtech.dassco_specify_adapter.domain.specify.*;
-import dk.northtech.dassco_specify_adapter.domain.UploadParams;
 import jakarta.inject.Inject;
-import jakarta.ws.rs.core.Response;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -27,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.*;
@@ -37,6 +34,7 @@ import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class SpecifyEndpointService {
@@ -60,19 +58,21 @@ public class SpecifyEndpointService {
         this.keycloakService = keycloakService;
     }
 
-    public AcknowledgeStatus pushImageToSpecify(CollectionObjectAttachment collectionObjectAttachment) {
+    public CollectionObjectAttachment pushImageToSpecify(CollectionObjectAttachment collectionObjectAttachment, Asset arsAsset, boolean deleteAttachment) {
 
         // 2: Log In to Specify:
         LoginInfo loginInfo = login();
 //        String csrfToken = loginMap.get("csrftoken").toString();
         // 3: Get Asset Institution and Collection Mapping:
-        String collection = collectionObjectAttachment.ars_collection;
+        String collection = arsAsset.collection;
         //        Object collectionObj = loginMap.get("collections");
 
         int specifyCollectionId = 0;
 //        if (collectionObj instanceof JSONObject collections) {
         if (loginInfo.collections.containsKey(collection)) {
             specifyCollectionId = loginInfo.collections.get(collection);
+        } else {
+            throw new SpecifyAdapterException("No collection was found in specify", AcknowledgeStatus.MAPPING_ERROR);
         }
 //        }
         logger.info("Logging into collection {}", collection);
@@ -81,36 +81,165 @@ public class SpecifyEndpointService {
         SpecifyCollectionLogin specifyLogin = loginToCollection(specifyCollectionId, loginInfo.csrftoken);
 
         // 5: Get Collection Object (if it exists!):
-        String barcode = collectionObjectAttachment.ars_barcode;
-        CollectionObject collectionObject = getCollectionObject(specifyLogin, barcode);
+        CollectionObject collectionObject = getCollectionObject(specifyLogin, arsAsset.specimens.getFirst().barcode());
+        UploadParams uploadParams = null;
+//        for(DasscoFile dasscoFile : dasscoFiles) {
+        CollectionObjectAttachment attachmentToUpdate = collectionObjectAttachment;
+        attachmentToUpdate.collectionmemberid = collectionObject.collectionmemberid;
+        attachmentToUpdate.collectionobject = "/api/specify/collectionobject/" + collectionObject.id;
+
+        CollectionObjectAttachment collectionObjectAttachmentWithIds = null;
+
+        //Check if attachment has been deleted outside of ars
+        boolean deletedAttachment = true;
+        for (CollectionObjectAttachment a : collectionObject.collectionobjectattachments) {
+
+            if (a.attachment != null && Objects.equals(a.attachment.id, arsAsset.specify_attachment_id)) {
+                deletedAttachment = false;
+                break;
+            }
+        }
+
+        if (deletedAttachment) {
+            arsAsset.specify_attachment_id = null;
+        }
+
+        if (arsAsset.specify_attachment_id != null && arsAsset.date_asset_deleted != null) {
+            // tombstone
+            logger.info("In tombstone");
+
+            for (CollectionObjectAttachment coath : collectionObject.collectionobjectattachments) {
+                if (coath.attachment != null && coath.attachment.id.equals(arsAsset.specify_attachment_id)) {
+                    attachmentToUpdate = coath;
+//                    attachmentToUpdate.version = attachmentToUpdate.version == null ? 1 : attachmentToUpdate.version;
+                    moveValuesToExisting(collectionObjectAttachment.attachment, coath.attachment);
+                    uploadParams = tombstoneAttachment(specifyLogin, attachmentToUpdate, arsAsset);
+                    attachmentToUpdate.attachment.attachmentlocation = uploadParams.attachmentLocation;
+                    logger.info("Tombstoning collectionObjectAttachment: {}", attachmentToUpdate.toString());
+                    collectionObjectAttachmentWithIds = putCollectionObjectAttachment(attachmentToUpdate, specifyLogin);
+                }
+            }
+
+        } else if (arsAsset.specify_attachment_id != null) {
+            // update
+            logger.info("In update attachment");
+
+            for (CollectionObjectAttachment coath : collectionObject.collectionobjectattachments) {
+                if (coath.attachment != null && coath.attachment.id.equals(arsAsset.specify_attachment_id)) {
+                    logger.info("found attachment to update");
+                    attachmentToUpdate = coath;
+//                    attachmentToUpdate.version = attachmentToUpdate.version == null ? 1 : attachmentToUpdate.version;
+//                    attachmentToUpdate.attachment.version = attachmentToUpdate.attachment.version == null || attachmentToUpdate.attachment.version == 0 ? 2 : attachmentToUpdate.attachment.version;
+                    moveValuesToExisting(collectionObjectAttachment.attachment, coath.attachment);
+                    uploadParams = uploadFile(specifyLogin, attachmentToUpdate, arsAsset);
+                    attachmentToUpdate.attachment.attachmentlocation = uploadParams.attachmentLocation;
+                    logger.info("Updating collectionObjectAttachment: {}", collectionObjectAttachment.toString());
+                    collectionObjectAttachmentWithIds = putCollectionObjectAttachment(attachmentToUpdate, specifyLogin);
+                }
+            }
+        } else if (arsAsset.date_asset_deleted == null) {
+            // create
+            logger.info("Creating new attachment in specify");
+
+            collectionObjectAttachment.version = 1;
+            collectionObjectAttachment.attachment.version = 1;
+            uploadParams = uploadFile(specifyLogin, attachmentToUpdate, arsAsset);
+            attachmentToUpdate.attachment.attachmentlocation = uploadParams.attachmentLocation;
+            collectionObjectAttachmentWithIds = postCollectionObjectAttachment(attachmentToUpdate, specifyLogin);
+        }
+        if (deleteAttachment) {
+            // delete
+        }
+
+        // 13: Log out the user:
+        logout(specifyLogin);
+        return collectionObjectAttachmentWithIds;
+    }
+
+    private UploadParams tombstoneAttachment(SpecifyCollectionLogin specifyLogin, CollectionObjectAttachment attachmentToUpdate, Asset arsAsset) {
         String token = keycloakService.getUserServiceToken();
         // 6: Get files in ERDA:
-        List<String> files = assetFileService.getAssetFiles(collectionObjectAttachment.ars_assetguid, token);
+//        List<String> files = assetFileService.getAssetFiles(arsAsset.asset_guid, token);
+//        files.forEach(s -> logger.info("Asset has file: {}", s));
+        // 7: Sanitize the list of files to only get the filenames:
+        String fileName = arsAsset.asset_guid + "-tombstone.json";
+        // 8: Get Upload Params:
+        List<UploadParams> uploadParams = getUploadParams(specifyLogin, List.of(fileName));
+
+//        Tika tika = new Tika();
+//        String[] parts = files.get(0).split("/");
+//        String fileInstitution = parts[2];
+//        String fileCollection = parts[3];
+//        String asset = parts[4];
+//        String path = parts[5];
+//        String filename = parts[parts.length - 1];
+//        String mimeType = tika.detect(filename);
+        // 10.b: Get token and attachmentLocation from the uploadParams:
+//            JSONObject uploadParam = uploadParams.getJSONObject(i);
+        UploadParams uploadParam = uploadParams.get(0);
+        String attachmentLocation = uploadParam.attachmentLocation;
+        String attachmentToken = uploadParam.token;
+        // 10.c: Fetch the file:
+        InputStream inputStream = null;
+        attachmentToUpdate.attachment.mimetype = "application/json";
+        try {
+            inputStream = new ByteArrayInputStream(writer.writeValueAsBytes(arsAsset));
+            // 10.d: Upload file to the asset server:
+            uploadFile(attachmentToken, attachmentLocation, arsAsset.collection, inputStream, fileName);
+        } catch (JsonProcessingException e) {
+            logger.error("Failed to tombstone asset", e);
+            throw new SpecifyAdapterException("Failed to write asset object to file", AcknowledgeStatus.FILE_UPLOAD_ERROR);
+        }
+        return uploadParam;
+    }
+
+    public CollectionObjectAttachment putCollectionObjectAttachment(CollectionObjectAttachment collectionObjectAttachment, SpecifyCollectionLogin login) {
+        HttpClient httpClient = HttpClient.newBuilder().build();
+        logger.info("Updating existing collectionobjectattachment: {}", collectionObjectAttachment.id);
+        try {
+            String json = writer.writeValueAsString(collectionObjectAttachment);
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(this.specifyProperties.rootUrl() + "/api/specify/collectionobjectattachment/" + collectionObjectAttachment.id + "/"))
+                    .header("Cookie", "collection=" + login.collection() + ";csrftoken=" + login.csrftoken() + ";sessionid=" + login.sessionid())
+                    .header("X-CSRFToken", login.csrftoken())
+                    .PUT(HttpRequest.BodyPublishers.ofString(json))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                logger.info(response.headers().toString());
+
+                throw new RuntimeException("There was an error. Status: " + response.statusCode() + ". Error: " + response.body());
+            }
+            return mapper.readValue(response.body(), CollectionObjectAttachment.class);
+        } catch (IOException | InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
+    public UploadParams uploadFile(SpecifyCollectionLogin specifyLogin, CollectionObjectAttachment collectionObjectAttachment, Asset arsAsset) {
+        String token = keycloakService.getUserServiceToken();
+        // 6: Get files in ERDA:
+        List<String> files = assetFileService.getAssetFiles(arsAsset.asset_guid, token);
         files.forEach(s -> logger.info("Asset has file: {}", s));
         // 7: Sanitize the list of files to only get the filenames:
         List<String> filenames = files.stream().map(url -> url.substring(url.lastIndexOf('/') + 1)).toList();
-        if(files.size() != 1) {
+        if (files.size() != 1) {
             throw new SpecifyAdapterException("The adapter can only handle Assets with one attachment", AcknowledgeStatus.FILE_UPLOAD_ERROR);
         }
         // 8: Get Upload Params:
         List<UploadParams> uploadParams = getUploadParams(specifyLogin, filenames);
-//        // 9: Get Collection Info:
-//        Collection collectionInfo = getCollectionInfo(csrfToken, sessionId, collectionId);
-//        String collectionName = collectionInfo.collectionname;
-//        String collectionResource = collectionInfo.resource_uri;
-//        String collectionDiscipline = collectionInfo.discipline;
+
         Tika tika = new Tika();
-//        JSONArray collectionObjectAttachments = new JSONArray();
-        // 10: For each File in filenames, get the Stream.
-//        for (int i = 0; i < files.size(); i++) {
-        // 10.a: Get institution, collection, asset and path:
-        //assume only one file per metadata
         String[] parts = files.get(0).split("/");
         String fileInstitution = parts[2];
         String fileCollection = parts[3];
         String asset = parts[4];
         String path = parts[5];
         String filename = parts[parts.length - 1];
+        String mimeType = tika.detect(filename);
+        collectionObjectAttachment.attachment.mimetype = mimeType;
         // 10.b: Get token and attachmentLocation from the uploadParams:
 //            JSONObject uploadParam = uploadParams.getJSONObject(i);
         UploadParams uploadParam = uploadParams.get(0);
@@ -119,29 +248,22 @@ public class SpecifyEndpointService {
         // 10.c: Fetch the file:
         InputStream inputStream = assetFileService.fetchFiles(fileInstitution, fileCollection, asset, path, token);
         // 10.d: Upload file to the asset server:
-        uploadFile(attachmentToken, attachmentLocation, collection, inputStream, filename);
-        // 10.e: Get mime type
-        String mimeType = tika.detect(filename);
-        collectionObjectAttachment.collectionmemberid = collectionObject.collectionmemberid;
-        collectionObjectAttachment.collectionobject = "/api/specify/collectionobject/" + specifyLogin.collection();
-//        collectionObjectAttachment.attachment.mimetype
-        // 10.f: Make the attachment resource:
-
-        collectionObjectAttachment.attachment.attachmentlocation = uploadParam.attachmentLocation;
-//        JSONObject attachmentResource = createAttachmentResource(attachmentLocation, mimeType, filename, i);
-//        collectionObjectAttachments.put(attachmentResource);
-//        }
-        // 11: Add Attachments to CollectionObject:
-//        collectionObject.put("collectionobjectattachments", collectionObjectAttachments);
-        // 12: PUT new collectionObject:
-//        int collectionObjectId = collectionObject.id);
-//        putCollectionObject(collectionId, csrfToken, sessionId, collectionObjectId, collectionObject);
-        postCollectionObjectAttachment(collectionObjectAttachment, specifyLogin);
-        // 13: Log out the user:
-        logout(specifyLogin);
-        return AcknowledgeStatus.SUCCESS;
+        uploadFile(attachmentToken, attachmentLocation, arsAsset.collection, inputStream, filename);
+        return uploadParam;
     }
 
+
+    public void moveValuesToExisting(Attachment withARSValues, Attachment fromSpecify) {
+        fromSpecify.remarks = withARSValues.remarks;
+        fromSpecify.mimetype = withARSValues.mimetype;
+        fromSpecify.origfilename = withARSValues.origfilename;
+        fromSpecify.title = withARSValues.title;
+        fromSpecify.ispublic = withARSValues.ispublic;
+        fromSpecify.copyrightdate = withARSValues.copyrightdate;
+        fromSpecify.copyrightholder = withARSValues.copyrightholder;
+        fromSpecify.license = withARSValues.license;
+        fromSpecify.credit = withARSValues.credit;
+    }
 
     public LoginInfo login() {
 
@@ -229,8 +351,8 @@ public class SpecifyEndpointService {
                     }
                     if (cookie.getName().equalsIgnoreCase("collection")) {
                         collectionIdAsString = cookie.getValue();
+                    }
                 }
-            }
                 return new SpecifyCollectionLogin(sessionId, newCsrfToken, collectionIdAsString);
             } else if (response.statusCode() == 403) {
                 throw new RuntimeException("Forbidden. There has been a problem logging into the Collection. Most likely scenario is the CSRF Token being wrong.");
@@ -539,7 +661,7 @@ public class SpecifyEndpointService {
         }
     }
 
-    public void postCollectionObjectAttachment(CollectionObjectAttachment collectionObjectAttachment
+    public CollectionObjectAttachment postCollectionObjectAttachment(CollectionObjectAttachment collectionObjectAttachment
             , SpecifyCollectionLogin login) {
         HttpClient httpClient = HttpClient.newBuilder().build();
         try {
@@ -557,6 +679,7 @@ public class SpecifyEndpointService {
             if (response.statusCode() != 201) {
                 throw new RuntimeException("There was an error. Status: " + response.statusCode() + ". Error: " + response.body());
             }
+            return mapper.readValue(response.body(), CollectionObjectAttachment.class);
         } catch (IOException | InterruptedException e) {
             throw new RuntimeException(e);
         }
