@@ -117,6 +117,7 @@ public class MappingService {
         }
         baseAsset = baseAsset.replace("${specify_attachment_remarks}", asset.specify_attachment_remarks == null ? "" : asset.specify_attachment_remarks)
                 .replace("${specify_attachment_title}", asset.specify_attachment_title == null ? "" : asset.specify_attachment_title);
+        baseAsset = baseAsset.replace("{pipeline}", asset.pipeline == null ? "" : asset.pipeline);
         return baseAsset;
     }
 
