@@ -104,8 +104,11 @@ Some bug fixes
 Mapping list - which make sense to be mapped: to be put in https://github.com/NHMDenmark/specify-adapter/edit/main/documentation/
 
 Request for adding release notes for each deployment and include #issue no which have been solved in the release notes
+
 Request for Documentation on all the tables the Sprecify Bridge is manulating and all the Specify API endpoints being used
-Demo of the functionality until now
+
+Demo of the functionality until now - next meeting 8th July
+
 Meeting for discussing moderated access on 9th July
 
 ### Discussion and Decisions
