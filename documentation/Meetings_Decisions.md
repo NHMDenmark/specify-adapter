@@ -128,6 +128,7 @@ Meeting for discussing moderated access on 9th July
 4. Keeping conf file transparent
   - there should not be any invisible processing happing through conf files - for example converting infering mime type from file formats behind the scenes
   - contactination and splitting should also be transparent and visible in conf files - for example origfilename=${asset_guid}.${file_format}
+  - adding table name to the specify fields in the mapping conf file
 
 5. external publisher put on hold
   - current status - external publisher is an object which can contain URL and name but no support in SPecify so , put on hold
