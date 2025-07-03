@@ -127,7 +127,8 @@ Meeting for discussing moderated access on 9th July
   - contactination and splitting should also be transparent and visible in conf files - for example origfilename=${asset_guid}.${file_format}
 
 5. external publisher put on hold
-   - current status - external publisher is an object which can contain URL and name but no support in SPecify so , put on hold
-   - keeping potential for this in mind - need to work up a list of specific fields in specific tables and relevant that should be kept open for dynamic mapping
+  - current status - external publisher is an object which can contain URL and name but no support in SPecify so , put on hold
+  - keeping potential for this in mind - need to work up a list of specific fields in specific tables and relevant that should be kept open for dynamic mapping
 
-*** Deployment ***
+**Deployment**
+4th July
