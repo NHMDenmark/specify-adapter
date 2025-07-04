@@ -8,18 +8,16 @@ public record Acknowledge(
         AcknowledgeStatus status,
         String message,
         Instant date,
-        Integer specify_attachment_id) {
+        List<Specimen> specimensWithSpecifyIds) {
+
 
     @Override
     public String toString() {
         return "Acknowledge{" +
-               "asset_guid='" + asset_guid + '\'' +
+               "assetGuid='" + asset_guid + '\'' +
                ", status=" + status +
                ", message='" + message + '\'' +
                ", date=" + date +
                '}';
-    }
-
-    public Acknowledge {
     }
 }

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 
 import static com.google.common.truth.Truth.assertThat;
@@ -69,7 +70,7 @@ public class MappingServiceTest {
 
     public static Asset getTestAsset() {
         Asset asset = new Asset();
-        asset.specimens = Arrays.asList(new Specimen("barcode", "specimen_pid","slide", Arrays.asList("slide"),"slide"));
+        asset.specimens = Arrays.asList(new Specimen("barcode", "specimen_pid", new HashSet<>(Arrays.asList("slide")),"slide"));
         asset.asset_locked = false;
         asset.status = "BEING_PROCESSED";
         asset.digitiser = "Karl-Børge";

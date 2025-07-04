@@ -37,6 +37,7 @@ public class Attachment {
     public String timestampcreated;
     public String timestampmodified;
     public String type;
+    // We can create objects in specify without version, but any attempts at updating them afterward will result in errors.
     public Integer version;
     public Integer visibility;
 
