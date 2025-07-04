@@ -123,7 +123,10 @@ Meeting for discussing moderated access on 9th July
  - solution recommended -  search and delete in Specify
 
 3. Add new metadata field - mimetype in ARS
- - updated mapping - mimetype field in SPecify should be mapped to new field mime_type field in ARS   
+ - updated mapping - mimetype field in SPecify should be mapped to new field mime_type field in ARS
+ - solution once the file is in file proxy, the ARS will fill this field out from content-header type
+   - in case there are multiple files in an asset, the mime_type field should be appended with the different mime_types
+   - when tombstoning  ARS will change the mime_type to json as SPecify needs this value to show it in the browser  
 
 4. Keeping conf file transparent
   - there should not be any invisible processing happing through conf files - for example converting infering mime type from file formats behind the scenes
