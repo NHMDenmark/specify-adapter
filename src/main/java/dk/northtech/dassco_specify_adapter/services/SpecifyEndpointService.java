@@ -106,7 +106,7 @@ public class SpecifyEndpointService {
                         attachmentToUpdate.collectionobject = "/api/specify/collectionobject/" + collectionObject.id;
 //                    attachmentToUpdate.version = attachmentToUpdate.version == null ? 1 : attachmentToUpdate.version;
                         moveValuesToExisting(collectionObjectAttachment.attachment, coath.attachment);
-                        if (uploadParams != null) {
+                        if (uploadParams == null) {
                             uploadParams = tombstoneAttachment(specifyLogin, attachmentToUpdate, arsAsset);
                         }
                         attachmentToUpdate.attachment.attachmentlocation = uploadParams.attachmentLocation;
@@ -145,7 +145,9 @@ public class SpecifyEndpointService {
                 attachmentToUpdate.collectionobject = "/api/specify/collectionobject/" + collectionObject.id;
                 collectionObjectAttachment.version = 1;
                 collectionObjectAttachment.attachment.version = 1;
-                uploadParams = uploadFile(specifyLogin, attachmentToUpdate, arsAsset);
+                if(uploadParams == null) {
+                    uploadParams = uploadFile(specifyLogin, attachmentToUpdate, arsAsset);
+                }
                 attachmentToUpdate.attachment.attachmentlocation = uploadParams.attachmentLocation;
                 CollectionObjectAttachment coaWithId = postCollectionObjectAttachment(attachmentToUpdate, specifyLogin);
                 specimenWithIds.add(new Specimen(specimen.institution(), specimen.collection(), specimen.barcode(), specimen.specimen_pid(),specimen.preparation_types(),specimen.asset_preparation_type(), specimen.specimen_id(), specimen.collection_id(), coaWithId.id, specimen.asset_detached()));
