@@ -78,40 +78,36 @@ public class SpecifyEndpointService {
         SpecifyCollectionLogin specifyLogin = loginToCollection(specifyCollectionId, loginInfo.csrftoken);
 
         UploadParams uploadParams = null;
+        UploadParams tombstoneParams = null;
 //        for(DasscoFile dasscoFile : dasscoFiles) {
         CollectionObjectAttachment attachmentToUpdate = collectionObjectAttachment;
 
 
         List<Specimen> specimenWithIds = new ArrayList<>();
         for (Specimen specimen : arsAsset.specimens) {
-
+            logger.info("Updating specimen: " + specimen
+            );
             CollectionObjectAttachment collectionObjectAttachmentWithIds = null;
             //Check if attachment has been deleted outside of ars
             // 5: Get Collection Object (if it exists!):
-            CollectionObject collectionObject = getCollectionObject(specifyLogin, arsAsset.specimens.getFirst().barcode());
-
-
-//            if (deletedAttachment) {
-//                arsAsset.specify_attachment_id = null;
-//            }
-
-            if (specimen.specify_collection_object_attachment_id() != null && arsAsset.date_asset_deleted != null) {
+            CollectionObject collectionObject = getCollectionObject(specifyLogin, specimen.barcode());
+                if (specimen.specify_collection_object_attachment_id() != null && (arsAsset.date_asset_deleted != null || specimen.asset_detached())) {
                 // tombstone
                 logger.info("In tombstone");
 
                 for (CollectionObjectAttachment coath : collectionObject.collectionobjectattachments) {
                     if (coath.id.equals(specimen.specify_collection_object_attachment_id())) {
-                        attachmentToUpdate = coath;
-                        attachmentToUpdate.collectionmemberid = collectionObject.collectionmemberid;
-                        attachmentToUpdate.collectionobject = "/api/specify/collectionobject/" + collectionObject.id;
+                        coath.collectionmemberid = collectionObject.collectionmemberid;
+                        coath.collectionobject = "/api/specify/collectionobject/" + collectionObject.id;
 //                    attachmentToUpdate.version = attachmentToUpdate.version == null ? 1 : attachmentToUpdate.version;
                         moveValuesToExisting(collectionObjectAttachment.attachment, coath.attachment);
-                        if (uploadParams == null) {
-                            uploadParams = tombstoneAttachment(specifyLogin, attachmentToUpdate, arsAsset);
+                        if (tombstoneParams == null) {
+                            tombstoneParams = tombstoneAttachment(specifyLogin, coath, arsAsset);
+                            collectionObjectAttachment.attachment.mimetype = coath.attachment.mimetype;
                         }
-                        attachmentToUpdate.attachment.attachmentlocation = uploadParams.attachmentLocation;
-                        logger.info("Tombstoning collectionObjectAttachment: {}", attachmentToUpdate.toString());
-                        collectionObjectAttachmentWithIds = putCollectionObjectAttachment(attachmentToUpdate, specifyLogin);
+                        coath.attachment.attachmentlocation = tombstoneParams.attachmentLocation;
+                        logger.info("Tombstoning collectionObjectAttachment: {}", coath.toString());
+                        putCollectionObjectAttachment(coath, specifyLogin);
                         specimenWithIds.add(new Specimen(specimen.institution(), specimen.collection(), specimen.barcode(), specimen.specimen_pid(),specimen.preparation_types(),specimen.asset_preparation_type(), specimen.specimen_id(), specimen.collection_id(), null, specimen.asset_detached()));
                     }
                 }
@@ -123,22 +119,22 @@ public class SpecifyEndpointService {
                 for (CollectionObjectAttachment coath : collectionObject.collectionobjectattachments) {
                     if (coath.id.equals(specimen.specify_collection_object_attachment_id())) {
                         logger.info("found attachment to update");
-                        attachmentToUpdate = coath;
-                        attachmentToUpdate.collectionmemberid = collectionObject.collectionmemberid;
-                        attachmentToUpdate.collectionobject = "/api/specify/collectionobject/" + collectionObject.id;
+                        coath.collectionmemberid = collectionObject.collectionmemberid;
+                        coath.collectionobject = "/api/specify/collectionobject/" + collectionObject.id;
 //                    attachmentToUpdate.version = attachmentToUpdate.version == null ? 1 : attachmentToUpdate.version;
 //                    attachmentToUpdate.attachment.version = attachmentToUpdate.attachment.version == null || attachmentToUpdate.attachment.version == 0 ? 2 : attachmentToUpdate.attachment.version;
                         moveValuesToExisting(collectionObjectAttachment.attachment, coath.attachment);
                         if (uploadParams == null) {
-                            uploadParams = uploadFile(specifyLogin, attachmentToUpdate, arsAsset);
+                            uploadParams = uploadFile(specifyLogin, coath, arsAsset);
+                            collectionObjectAttachment.attachment.mimetype = coath.attachment.mimetype;
                         }
-                        attachmentToUpdate.attachment.attachmentlocation = uploadParams.attachmentLocation;
+                        coath.attachment.attachmentlocation = uploadParams.attachmentLocation;
                         logger.info("Updating collectionObjectAttachment: {}", collectionObjectAttachment.toString());
-                        CollectionObjectAttachment coaWithId = putCollectionObjectAttachment(attachmentToUpdate, specifyLogin);
+                        CollectionObjectAttachment coaWithId = putCollectionObjectAttachment(coath, specifyLogin);
                         specimenWithIds.add(new Specimen(specimen.institution(), specimen.collection(), specimen.barcode(), specimen.specimen_pid(),specimen.preparation_types(),specimen.asset_preparation_type(), specimen.specimen_id(), specimen.collection_id(), coaWithId.id, specimen.asset_detached()));
                     }
                 }
-            } else if (arsAsset.date_asset_deleted == null) {
+            } else if (arsAsset.date_asset_deleted == null && !specimen.asset_detached()) {
                 // create
                 logger.info("Creating new attachment in specify");
                 attachmentToUpdate.collectionmemberid = collectionObject.collectionmemberid;
@@ -147,6 +143,7 @@ public class SpecifyEndpointService {
                 collectionObjectAttachment.attachment.version = 1;
                 if(uploadParams == null) {
                     uploadParams = uploadFile(specifyLogin, attachmentToUpdate, arsAsset);
+                    collectionObjectAttachment.attachment.mimetype = attachmentToUpdate.attachment.mimetype;
                 }
                 attachmentToUpdate.attachment.attachmentlocation = uploadParams.attachmentLocation;
                 CollectionObjectAttachment coaWithId = postCollectionObjectAttachment(attachmentToUpdate, specifyLogin);

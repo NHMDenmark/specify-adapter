@@ -117,7 +117,21 @@ public class MappingService {
         }
         baseAsset = baseAsset.replace("${specify_attachment_remarks}", asset.specify_attachment_remarks == null ? "" : asset.specify_attachment_remarks)
                 .replace("${specify_attachment_title}", asset.specify_attachment_title == null ? "" : asset.specify_attachment_title);
-        baseAsset = baseAsset.replace("{pipeline}", asset.pipeline == null ? "" : asset.pipeline);
+        baseAsset = baseAsset.replace("${pipeline}", asset.pipeline == null ? "" : asset.pipeline);
+        baseAsset = baseAsset.replace("${metadata_updated_by}", asset.metadata_updated_by == null ? "" : asset.metadata_updated_by)
+                .replace("${mos_id}", asset.mos_id == null ? "" : asset.mos_id)
+                .replace("${metadata_source}", asset.metadata_source == null ? "" : asset.metadata_source)
+                .replace("${metadata_version}", asset.metadata_version == null ? "" : asset.metadata_version)
+                .replace("${camera_setting_control}", asset.camera_setting_control == null ? "" : asset.camera_setting_control)
+                .replace("${workstation}", asset.workstation == null ? "" : asset.workstation)
+                .replace("${date_audited}", formatDate(asset.date_audited))
+                .replace("${status}", asset.status)
+                .replace("${institution}", asset.institution)
+                .replace("${collection}", asset.institution)
+                .replace("${date_asset_deleted}", formatDate(asset.date_asset_deleted))
+                .replace("${multi_specimen}", String.valueOf(asset.multi_specimen))
+//                .replace("${internal_status}", String.valueOf(asset.internal_status))
+                .replace("${payload_type}", asset.payload_type == null ? "" : asset.payload_type);
         return baseAsset;
     }
 
