@@ -38,10 +38,9 @@ public class SpecifySyncService {
             ARSUpdate arsUpdate = mapper.readValue(arsUpdateJson, ARSUpdate.class);
             CollectionObjectAttachment attachment = mappingService.getAttachment(arsUpdate.asset);
             try {
-                CollectionObjectAttachment collectionObjectAttachment = specifyEndpointService.pushImageToSpecify(attachment,arsUpdate.asset, arsUpdate.deleteAttachment );
-                Attachment attachment1 = collectionObjectAttachment.attachment;
+                List<Specimen> specimen = specifyEndpointService.pushImageToSpecify(attachment, arsUpdate.asset, arsUpdate.deleteAttachment);
 
-                queueBroadcaster.sendMessage(new Acknowledge(arsUpdate.asset.asset_guid, AcknowledgeStatus.SUCCESS, null, Instant.now(), attachment1.id));
+                queueBroadcaster.sendMessage(new Acknowledge(arsUpdate.asset.asset_guid, AcknowledgeStatus.SUCCESS, null, Instant.now(), specimen));
             } catch (SpecifyAdapterException spx) {
                 queueBroadcaster.sendMessage(new Acknowledge(arsUpdate.asset.asset_guid, spx.status(), spx.getMessage(), Instant.now(), null));
             } catch (Exception ex) {

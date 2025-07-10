@@ -9,7 +9,8 @@ public class CollectionObjectAttachment {
     public Attachment attachment;
     public Integer collectionmemberid;
     public String collectionobject;
-    public String id;
+    public Long id;
+    // We can create objects in specify without version, but any attempts at updating them afterward will result in errors.
     public Integer version;
 //    @JsonIgnore
 //    public String ars_collection;

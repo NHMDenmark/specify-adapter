@@ -31,16 +31,13 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.LocalDate;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 @Service
 public class SpecifyEndpointService {
     SpecifyProperties specifyProperties;
     AssetFileService assetFileService;
-    AssetService assetService;
+
     KeycloakService keycloakService;
     ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule()).configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     ObjectWriter writer = new ObjectMapper().registerModule(new JavaTimeModule()).writer().withDefaultPrettyPrinter();
@@ -50,15 +47,15 @@ public class SpecifyEndpointService {
     @Inject
     public SpecifyEndpointService(SpecifyProperties specifyProperties,
                                   AssetFileService assetFileService,
-                                  AssetService assetService,
+
                                   KeycloakService keycloakService) {
         this.specifyProperties = specifyProperties;
         this.assetFileService = assetFileService;
-        this.assetService = assetService;
+
         this.keycloakService = keycloakService;
     }
 
-    public CollectionObjectAttachment pushImageToSpecify(CollectionObjectAttachment collectionObjectAttachment, Asset arsAsset, boolean deleteAttachment) {
+    public List<Specimen> pushImageToSpecify(CollectionObjectAttachment collectionObjectAttachment, Asset arsAsset, boolean deleteAttachment) {
 
         // 2: Log In to Specify:
         LoginInfo loginInfo = login();
@@ -80,80 +77,88 @@ public class SpecifyEndpointService {
         // 4: Login to Collection:
         SpecifyCollectionLogin specifyLogin = loginToCollection(specifyCollectionId, loginInfo.csrftoken);
 
-        // 5: Get Collection Object (if it exists!):
-        CollectionObject collectionObject = getCollectionObject(specifyLogin, arsAsset.specimens.getFirst().barcode());
         UploadParams uploadParams = null;
+        UploadParams tombstoneParams = null;
 //        for(DasscoFile dasscoFile : dasscoFiles) {
         CollectionObjectAttachment attachmentToUpdate = collectionObjectAttachment;
-        attachmentToUpdate.collectionmemberid = collectionObject.collectionmemberid;
-        attachmentToUpdate.collectionobject = "/api/specify/collectionobject/" + collectionObject.id;
 
-        CollectionObjectAttachment collectionObjectAttachmentWithIds = null;
 
-        //Check if attachment has been deleted outside of ars
-        boolean deletedAttachment = true;
-        for (CollectionObjectAttachment a : collectionObject.collectionobjectattachments) {
+        List<Specimen> specimenWithIds = new ArrayList<>();
+        for (Specimen specimen : arsAsset.specimens) {
+            logger.info("Updating specimen: " + specimen
+            );
+            CollectionObjectAttachment collectionObjectAttachmentWithIds = null;
+            //Check if attachment has been deleted outside of ars
+            // 5: Get Collection Object (if it exists!):
+            CollectionObject collectionObject = getCollectionObject(specifyLogin, specimen.barcode());
+            if (specimen.specify_collection_object_attachment_id() != null && (arsAsset.date_asset_deleted != null || specimen.asset_detached())) {
+                // tombstone
+                logger.info("In tombstone");
 
-            if (a.attachment != null && Objects.equals(a.attachment.id, arsAsset.specify_attachment_id)) {
-                deletedAttachment = false;
-                break;
-            }
-        }
-
-        if (deletedAttachment) {
-            arsAsset.specify_attachment_id = null;
-        }
-
-        if (arsAsset.specify_attachment_id != null && arsAsset.date_asset_deleted != null) {
-            // tombstone
-            logger.info("In tombstone");
-
-            for (CollectionObjectAttachment coath : collectionObject.collectionobjectattachments) {
-                if (coath.attachment != null && coath.attachment.id.equals(arsAsset.specify_attachment_id)) {
-                    attachmentToUpdate = coath;
+                for (CollectionObjectAttachment coath : collectionObject.collectionobjectattachments) {
+                    if (coath.id.equals(specimen.specify_collection_object_attachment_id())) {
+                        coath.collectionmemberid = collectionObject.collectionmemberid;
+                        coath.collectionobject = "/api/specify/collectionobject/" + collectionObject.id;
 //                    attachmentToUpdate.version = attachmentToUpdate.version == null ? 1 : attachmentToUpdate.version;
-                    moveValuesToExisting(collectionObjectAttachment.attachment, coath.attachment);
-                    uploadParams = tombstoneAttachment(specifyLogin, attachmentToUpdate, arsAsset);
-                    attachmentToUpdate.attachment.attachmentlocation = uploadParams.attachmentLocation;
-                    logger.info("Tombstoning collectionObjectAttachment: {}", attachmentToUpdate.toString());
-                    collectionObjectAttachmentWithIds = putCollectionObjectAttachment(attachmentToUpdate, specifyLogin);
+                        moveValuesToExisting(collectionObjectAttachment.attachment, coath.attachment);
+                        if (tombstoneParams == null) {
+                            tombstoneParams = tombstoneAttachment(specifyLogin, coath, arsAsset);
+                            collectionObjectAttachment.attachment.mimetype = coath.attachment.mimetype;
+                        }
+                        coath.attachment.attachmentlocation = tombstoneParams.attachmentLocation;
+                        logger.info("Tombstoning collectionObjectAttachment: {}", coath.toString());
+                        putCollectionObjectAttachment(coath, specifyLogin);
+                        specimenWithIds.add(new Specimen(specimen.institution(), specimen.collection(), specimen.barcode(), specimen.specimen_pid(), specimen.preparation_types(), specimen.asset_preparation_type(), specimen.specimen_id(), specimen.collection_id(), null, specimen.asset_detached()));
+                    }
                 }
-            }
 
-        } else if (arsAsset.specify_attachment_id != null) {
-            // update
-            logger.info("In update attachment");
+            } else if (specimen.specify_collection_object_attachment_id() != null) {
+                // update
+                logger.info("In update attachment");
 
-            for (CollectionObjectAttachment coath : collectionObject.collectionobjectattachments) {
-                if (coath.attachment != null && coath.attachment.id.equals(arsAsset.specify_attachment_id)) {
-                    logger.info("found attachment to update");
-                    attachmentToUpdate = coath;
+                for (CollectionObjectAttachment coath : collectionObject.collectionobjectattachments) {
+                    if (coath.id.equals(specimen.specify_collection_object_attachment_id())) {
+                        logger.info("found attachment to update");
+                        coath.collectionmemberid = collectionObject.collectionmemberid;
+                        coath.collectionobject = "/api/specify/collectionobject/" + collectionObject.id;
 //                    attachmentToUpdate.version = attachmentToUpdate.version == null ? 1 : attachmentToUpdate.version;
 //                    attachmentToUpdate.attachment.version = attachmentToUpdate.attachment.version == null || attachmentToUpdate.attachment.version == 0 ? 2 : attachmentToUpdate.attachment.version;
-                    moveValuesToExisting(collectionObjectAttachment.attachment, coath.attachment);
-                    uploadParams = uploadFile(specifyLogin, attachmentToUpdate, arsAsset);
-                    attachmentToUpdate.attachment.attachmentlocation = uploadParams.attachmentLocation;
-                    logger.info("Updating collectionObjectAttachment: {}", collectionObjectAttachment.toString());
-                    collectionObjectAttachmentWithIds = putCollectionObjectAttachment(attachmentToUpdate, specifyLogin);
+                        moveValuesToExisting(collectionObjectAttachment.attachment, coath.attachment);
+                        if (uploadParams == null) {
+                            uploadParams = uploadFile(specifyLogin, coath, arsAsset);
+                            collectionObjectAttachment.attachment.mimetype = coath.attachment.mimetype;
+                        }
+                        coath.attachment.attachmentlocation = uploadParams.attachmentLocation;
+                        logger.info("Updating collectionObjectAttachment: {}", collectionObjectAttachment.toString());
+                        CollectionObjectAttachment coaWithId = putCollectionObjectAttachment(coath, specifyLogin);
+                        specimenWithIds.add(new Specimen(specimen.institution(), specimen.collection(), specimen.barcode(), specimen.specimen_pid(), specimen.preparation_types(), specimen.asset_preparation_type(), specimen.specimen_id(), specimen.collection_id(), coaWithId.id, specimen.asset_detached()));
+                    }
                 }
+            } else if (arsAsset.date_asset_deleted == null && !specimen.asset_detached()) {
+                // create
+                logger.info("Creating new attachment in specify");
+                attachmentToUpdate.collectionmemberid = collectionObject.collectionmemberid;
+                attachmentToUpdate.collectionobject = "/api/specify/collectionobject/" + collectionObject.id;
+                collectionObjectAttachment.version = 1;
+                collectionObjectAttachment.attachment.version = 1;
+                if (uploadParams == null) {
+                    uploadParams = uploadFile(specifyLogin, attachmentToUpdate, arsAsset);
+                    collectionObjectAttachment.attachment.mimetype = attachmentToUpdate.attachment.mimetype;
+                }
+                attachmentToUpdate.attachment.attachmentlocation = uploadParams.attachmentLocation;
+                CollectionObjectAttachment coaWithId = postCollectionObjectAttachment(attachmentToUpdate, specifyLogin);
+                specimenWithIds.add(new Specimen(specimen.institution(), specimen.collection(), specimen.barcode(), specimen.specimen_pid(), specimen.preparation_types(), specimen.asset_preparation_type(), specimen.specimen_id(), specimen.collection_id(), coaWithId.id, specimen.asset_detached()));
             }
-        } else if (arsAsset.date_asset_deleted == null) {
-            // create
-            logger.info("Creating new attachment in specify");
 
-            collectionObjectAttachment.version = 1;
-            collectionObjectAttachment.attachment.version = 1;
-            uploadParams = uploadFile(specifyLogin, attachmentToUpdate, arsAsset);
-            attachmentToUpdate.attachment.attachmentlocation = uploadParams.attachmentLocation;
-            collectionObjectAttachmentWithIds = postCollectionObjectAttachment(attachmentToUpdate, specifyLogin);
-        }
-        if (deleteAttachment) {
-            // delete
-        }
+            collectionObjectAttachmentWithIds = null;
+            if (deleteAttachment) {
+                // delete
+            }
 
-        // 13: Log out the user:
+            // 13: Log out the user:
+        }
         logout(specifyLogin);
-        return collectionObjectAttachmentWithIds;
+        return specimenWithIds;
     }
 
     private UploadParams tombstoneAttachment(SpecifyCollectionLogin specifyLogin, CollectionObjectAttachment attachmentToUpdate, Asset arsAsset) {
@@ -420,32 +425,6 @@ public class SpecifyEndpointService {
         }
     }
 
-    public JSONObject createCollectionObject(String csrfToken, String collectionId, String sessionId, JSONObject collectionObject) {
-
-        HttpClient httpClient = HttpClient.newBuilder().build();
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(this.specifyProperties.rootUrl() + "/api/specify/collectionobject/"))
-                .header("X-CSRFToken", csrfToken)
-                .header("Cookie", "collection=" + collectionId + ";csrftoken=" + csrfToken + ";sessionid=" + sessionId)
-                .header("Content-Type", "application/json")
-                .header("Referer", this.specifyProperties.rootUrl() + "/specify/view/collectionobject/new/")
-                .POST(HttpRequest.BodyPublishers.ofString(collectionObject.toString()))
-                .build();
-
-        try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 201) {
-                return new JSONObject(response.body());
-            } else if (response.statusCode() == 403) {
-                throw new RuntimeException("Forbidden. Most likely scenario is that something is wrong with the CSRF Cookie.");
-            } else {
-                throw new RuntimeException("There was an error creating the Collection Object: " + response.body());
-            }
-        } catch (IOException | InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     public List<UploadParams> getUploadParams(SpecifyCollectionLogin login, List<String> filenames) {
 
@@ -477,89 +456,6 @@ public class SpecifyEndpointService {
         }
     }
 
-    public JSONObject createCollectionObjectJSONObject(String catalogNumber, JSONArray collectionObjectAttachments,
-                                                       String agent, String collectionResource, String collectionDiscipline) {
-        // CataloguedDate: Today (YYYY-MM-DD)
-        // Discipline: We are using Entomology for this. Find out how to know.
-        // Collection. NHMD Entomology. Hardcoded.
-        // Preptype. Let's use "none" for now.
-        // Yesno1 (whatever that is), true.
-
-        JSONObject jsonObject = new JSONObject();
-        String today = LocalDate.now().toString();
-
-        jsonObject.put("altcatalognumber", JSONObject.NULL);
-        jsonObject.put("catalogeddate", today);
-        jsonObject.put("catalogeddateprecision", 1);
-        jsonObject.put("cataloger", agent);
-        jsonObject.put("catalognumber", catalogNumber);
-        jsonObject.put("collection", collectionResource);
-        jsonObject.put("guid", JSONObject.NULL);
-        jsonObject.put("objectcondition", JSONObject.NULL);
-        jsonObject.put("projectnumber", JSONObject.NULL);
-        jsonObject.put("remarks", JSONObject.NULL);
-        jsonObject.put("text2", JSONObject.NULL);
-        jsonObject.put("text3", JSONObject.NULL);
-        jsonObject.put("yesno1", true);
-        jsonObject.put("_tableName", "CollectionObject");
-
-        // Create the collectingEvent Object:
-        JSONObject collectingEvent = new JSONObject();
-        collectingEvent.put("collectingeventattachments", new JSONArray());
-        collectingEvent.put("collectors", new JSONArray());
-        collectingEvent.put("discipline", collectionDiscipline);
-        collectingEvent.put("enddateprecision", 1);
-        collectingEvent.put("method", JSONObject.NULL);
-        collectingEvent.put("remarks", JSONObject.NULL);
-        collectingEvent.put("startdateprecision", 1);
-        collectingEvent.put("stationfieldnumber", JSONObject.NULL);
-        collectingEvent.put("text2", JSONObject.NULL);
-        collectingEvent.put("_tablename", "CollectingEvent");
-
-        jsonObject.put("collectingevent", collectingEvent);
-
-        jsonObject.put("collectionobjectattachments", collectionObjectAttachments);
-
-        // Create the "preparations" array:
-        JSONArray preparations = new JSONArray();
-        JSONObject preparation = new JSONObject();
-        preparation.put("preparationattachments", new JSONArray());
-        preparation.put("prepareddateprecision", 1);
-        preparation.put("preptype", "/api/specify/preptype/159/");
-        preparation.put("remarks", JSONObject.NULL);
-        preparation.put("samplenumber", JSONObject.NULL);
-        preparation.put("text1", JSONObject.NULL);
-        preparation.put("_tableName", "Preparation");
-
-        preparations.put(preparation);
-
-        jsonObject.put("preparations", preparations);
-
-        return jsonObject;
-    }
-
-    public Collection getCollectionInfo(String csrfToken, String sessionId, String collectionId) {
-        HttpClient httpClient = HttpClient.newBuilder().build();
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(this.specifyProperties.rootUrl() + "/api/specify/collection/" + collectionId + "/"))
-                .header("Cookie", "collection=" + collectionId + ";csrftoken=" + csrfToken + ";sessionid=" + sessionId)
-                .header("X-CSRFToken", csrfToken)
-                .GET()
-                .build();
-
-        try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200) {
-                // Saving the Collection Object Name for later use:
-                return mapper.readValue(response.body(), Collection.class);
-            } else {
-                throw new RuntimeException("There was an error getting the Collection Name");
-            }
-        } catch (IOException | InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     public void uploadFile(String attachmentToken, String attachmentLocation, String collectionName, InputStream inputStream, String filename) {
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
@@ -591,26 +487,6 @@ public class SpecifyEndpointService {
         }
     }
 
-    //TODO Mapping here!
-    public JSONObject createAttachmentResource(String attachmentLocation, String mimeType, String filename, int index) {
-        JSONObject attachment = new JSONObject();
-        attachment.put("attachmentlocation", attachmentLocation);
-        attachment.put("mimetype", mimeType);
-        attachment.put("origfilename", filename);
-        attachment.put("title", filename);
-        attachment.put("ispublic", true);
-        // What is this
-        attachment.put("tableid", 111);
-
-        JSONObject attachmentResource = new JSONObject();
-        attachmentResource.put("ordinal", index);
-        attachmentResource.put("attachment", attachment);
-        attachmentResource.put("_tableName", "CollectionObjectAttachment");
-
-        attachmentResource.put("attachment", attachment);
-
-        return attachmentResource;
-    }
 
     public CollectionObject getCollectionObject(SpecifyCollectionLogin login, String barcode) {
         HttpClient httpClient = HttpClient.newBuilder()
@@ -633,28 +509,6 @@ public class SpecifyEndpointService {
                 }
             } else {
                 throw new RuntimeException("Error: " + response.statusCode());
-            }
-        } catch (IOException | InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public void putCollectionObject(String collectionId, String csrfToken, String sessionId, int collectionObjectId, JSONObject collectionObject) {
-        HttpClient httpClient = HttpClient.newBuilder().build();
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(this.specifyProperties.rootUrl() + "/api/specify/collectionobject/" + collectionObjectId + "/"))
-                .header("Cookie", "collection=" + collectionId + ";csrftoken=" + csrfToken + ";sessionid=" + sessionId)
-                .header("X-CSRFToken", csrfToken)
-                .PUT(HttpRequest.BodyPublishers.ofString(collectionObject.toString()))
-                .build();
-
-        System.out.println(request);
-
-        try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != 200) {
-                throw new RuntimeException("There was an error. Status: " + response.statusCode() + ". Error: " + response.body());
             }
         } catch (IOException | InterruptedException e) {
             throw new RuntimeException(e);

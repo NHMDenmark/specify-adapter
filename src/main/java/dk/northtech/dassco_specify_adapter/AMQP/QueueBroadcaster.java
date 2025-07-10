@@ -31,6 +31,7 @@ public class QueueBroadcaster extends AbstractIdleService {
     QueueConnection queueConnection;
     private Instant lastRestart;
     ObjectWriter writer = new ObjectMapper().registerModule(new JavaTimeModule()).writer().withDefaultPrettyPrinter();
+
     @Inject
     public QueueBroadcaster(KeycloakService keycloakService, AMQPConfig amqpConfig) {
         this.keycloakService = keycloakService;

@@ -7,7 +7,6 @@ import com.google.common.net.UrlEscapers;
 import dk.northtech.dassco_specify_adapter.assets.FileProxyProperties;
 import dk.northtech.dassco_specify_adapter.domain.AcknowledgeStatus;
 import dk.northtech.dassco_specify_adapter.domain.SpecifyAdapterException;
-import dk.northtech.dassco_specify_adapter.domain.User;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,11 +15,9 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
-import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Service
