@@ -91,7 +91,7 @@ public class SpecifyEndpointService {
             //Check if attachment has been deleted outside of ars
             // 5: Get Collection Object (if it exists!):
             CollectionObject collectionObject = getCollectionObject(specifyLogin, specimen.barcode());
-                if (specimen.specify_collection_object_attachment_id() != null && (arsAsset.date_asset_deleted != null || specimen.asset_detached())) {
+            if (specimen.specify_collection_object_attachment_id() != null && (arsAsset.date_asset_deleted != null || specimen.asset_detached())) {
                 // tombstone
                 logger.info("In tombstone");
 
@@ -108,7 +108,7 @@ public class SpecifyEndpointService {
                         coath.attachment.attachmentlocation = tombstoneParams.attachmentLocation;
                         logger.info("Tombstoning collectionObjectAttachment: {}", coath.toString());
                         putCollectionObjectAttachment(coath, specifyLogin);
-                        specimenWithIds.add(new Specimen(specimen.institution(), specimen.collection(), specimen.barcode(), specimen.specimen_pid(),specimen.preparation_types(),specimen.asset_preparation_type(), specimen.specimen_id(), specimen.collection_id(), null, specimen.asset_detached()));
+                        specimenWithIds.add(new Specimen(specimen.institution(), specimen.collection(), specimen.barcode(), specimen.specimen_pid(), specimen.preparation_types(), specimen.asset_preparation_type(), specimen.specimen_id(), specimen.collection_id(), null, specimen.asset_detached()));
                     }
                 }
 
@@ -131,7 +131,7 @@ public class SpecifyEndpointService {
                         coath.attachment.attachmentlocation = uploadParams.attachmentLocation;
                         logger.info("Updating collectionObjectAttachment: {}", collectionObjectAttachment.toString());
                         CollectionObjectAttachment coaWithId = putCollectionObjectAttachment(coath, specifyLogin);
-                        specimenWithIds.add(new Specimen(specimen.institution(), specimen.collection(), specimen.barcode(), specimen.specimen_pid(),specimen.preparation_types(),specimen.asset_preparation_type(), specimen.specimen_id(), specimen.collection_id(), coaWithId.id, specimen.asset_detached()));
+                        specimenWithIds.add(new Specimen(specimen.institution(), specimen.collection(), specimen.barcode(), specimen.specimen_pid(), specimen.preparation_types(), specimen.asset_preparation_type(), specimen.specimen_id(), specimen.collection_id(), coaWithId.id, specimen.asset_detached()));
                     }
                 }
             } else if (arsAsset.date_asset_deleted == null && !specimen.asset_detached()) {
@@ -141,13 +141,13 @@ public class SpecifyEndpointService {
                 attachmentToUpdate.collectionobject = "/api/specify/collectionobject/" + collectionObject.id;
                 collectionObjectAttachment.version = 1;
                 collectionObjectAttachment.attachment.version = 1;
-                if(uploadParams == null) {
+                if (uploadParams == null) {
                     uploadParams = uploadFile(specifyLogin, attachmentToUpdate, arsAsset);
                     collectionObjectAttachment.attachment.mimetype = attachmentToUpdate.attachment.mimetype;
                 }
                 attachmentToUpdate.attachment.attachmentlocation = uploadParams.attachmentLocation;
                 CollectionObjectAttachment coaWithId = postCollectionObjectAttachment(attachmentToUpdate, specifyLogin);
-                specimenWithIds.add(new Specimen(specimen.institution(), specimen.collection(), specimen.barcode(), specimen.specimen_pid(),specimen.preparation_types(),specimen.asset_preparation_type(), specimen.specimen_id(), specimen.collection_id(), coaWithId.id, specimen.asset_detached()));
+                specimenWithIds.add(new Specimen(specimen.institution(), specimen.collection(), specimen.barcode(), specimen.specimen_pid(), specimen.preparation_types(), specimen.asset_preparation_type(), specimen.specimen_id(), specimen.collection_id(), coaWithId.id, specimen.asset_detached()));
             }
 
             collectionObjectAttachmentWithIds = null;
@@ -157,7 +157,7 @@ public class SpecifyEndpointService {
 
             // 13: Log out the user:
         }
-            logout(specifyLogin);
+        logout(specifyLogin);
         return specimenWithIds;
     }
 
