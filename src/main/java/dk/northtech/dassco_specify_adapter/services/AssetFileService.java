@@ -15,10 +15,14 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Supplier;
 
 @Service
 public class AssetFileService {
@@ -101,5 +105,63 @@ public class AssetFileService {
 //            } catch (Exception e){
 //                throw new RuntimeException("There was an error with the API call to file_proxy.", e);
 //            }
+    }
+
+    public int postFileToParkedFiles(InputStream file, String type, String collection, String filename, String pathPostFix){
+        Supplier<InputStream> streamSupplier = () -> file;
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(
+                        URI.create(
+                                fileProxyProperties.rootUrl()
+                                        + "/file_proxy/api/assetfiles/parkedfiles/"
+                                        + URLEncoder.encode(pathPostFix, StandardCharsets.UTF_8)
+                                        + "/" + URLEncoder.encode(collection, StandardCharsets.UTF_8)
+                                        + "/" + URLEncoder.encode(type, StandardCharsets.UTF_8)
+                                        + "/" + URLEncoder.encode(filename, StandardCharsets.UTF_8)
+                        )
+                )
+                .header("Content-Type", "application/octet-stream")
+                .POST(HttpRequest.BodyPublishers.ofInputStream(streamSupplier))
+                .build();
+
+        HttpClient httpClient = HttpClient.newHttpClient();
+        HttpResponse<String> response;
+        try {
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException e) {
+            logger.error(e.getMessage(), e);
+            throw new SpecifyAdapterException("Failed to upload Parked file to file proxy ", AcknowledgeStatus.PARKED_FILE_UPLOAD_ERROR);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        return response.statusCode();
+    }
+
+    public InputStream readFileFromParkedFiles(String coll, String type, String filename, String pathPostFix){
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(fileProxyProperties.rootUrl()
+                        + "/file_proxy/api/assetfiles/parkedfiles/"
+                        + URLEncoder.encode(pathPostFix, StandardCharsets.UTF_8) + "/"
+                        + URLEncoder.encode(coll, StandardCharsets.UTF_8) + "/"
+                        + URLEncoder.encode(Objects.equals(type, "T") ? "thumbnails" : "originals", StandardCharsets.UTF_8) + "/"
+                        + URLEncoder.encode(filename, StandardCharsets.UTF_8)
+                ))
+                .GET()
+                .build();
+
+        HttpClient httpClient = HttpClient.newHttpClient();
+        HttpResponse<InputStream> response;
+        try {
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        } catch (IOException e) {
+            logger.error(e.getMessage(), e);
+            throw new SpecifyAdapterException("Failed to fetch Parked file from file proxy ", AcknowledgeStatus.PARKED_FILE_DOWNLOAD_ERROR);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        return response.body();
+
+
     }
 }
