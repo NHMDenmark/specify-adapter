@@ -6,7 +6,6 @@ import dk.northtech.dassco_specify_adapter.services.AssetFileService;
 import dk.northtech.dassco_specify_adapter.services.SpecifyEndpointService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
-import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.StreamingOutput;
 import org.apache.tika.Tika;
@@ -56,21 +55,18 @@ public class AssetServerApi {
     //r.set_header('Content-Disposition', "inline; filename*=utf-8''%s" % download_name)
     @Path("fileget")
     @Consumes(MULTIPART_FORM_DATA)
-    public Response getFile(
-            @FormDataParam("coll") String coll,
-            @FormDataParam("type") String type,
-            @FormDataParam("filename") String filename,
-            @FormDataParam("scale") Integer scale
+    public Response getFile(@FormDataParam("coll") String coll, @FormDataParam("type") String type, @FormDataParam("filename") String filename, @FormDataParam("scale") Integer scale
     ){
         StreamingOutput streamingOutput = output -> {
-            try (InputStream is = assetFileService.readFileFromParkedFiles(coll, type, filename, this.assetServiceConfig.fileFriendlyPostfix())) {
+            try (InputStream is = assetFileService.readFileFromParkedFiles(coll, type, filename, this.assetServiceConfig.fileFriendlyPostfix(), scale)) {
                 is.transferTo(output);
                 output.flush();
             }
         };
+        String updatedFileName = type.equals("T") && filename.contains(".pdf") ? filename.replace(".pdf", ".png") : filename;
         return Response.status(200)
-                .header("Content-Disposition", "inline; attachment; filename=*utf-8" + filename)
-                .header("Content-Type", new Tika().detect(filename)).entity(streamingOutput).build();
+                .header("Content-Disposition", "inline; attachment; filename=*utf-8" + updatedFileName)
+                .header("Content-Type", new Tika().detect(updatedFileName)).entity(streamingOutput).build();
     }
 
     @OPTIONS

@@ -137,14 +137,16 @@ public class AssetFileService {
         return response.statusCode();
     }
 
-    public InputStream readFileFromParkedFiles(String coll, String type, String filename, String pathPostFix){
+    public InputStream readFileFromParkedFiles(String coll, String type, String filename, String pathPostFix, Integer scale){
+        String updatedFileName =  Objects.equals(type, "T") ? filename.replace(".", "_%s.".formatted(scale)) : filename;
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(fileProxyProperties.rootUrl()
                         + "/file_proxy/api/assetfiles/parkedfiles/"
                         + URLEncoder.encode(pathPostFix, StandardCharsets.UTF_8) + "/"
                         + URLEncoder.encode(coll, StandardCharsets.UTF_8) + "/"
                         + URLEncoder.encode(Objects.equals(type, "T") ? "thumbnails" : "originals", StandardCharsets.UTF_8) + "/"
-                        + URLEncoder.encode(filename, StandardCharsets.UTF_8)
+                        + URLEncoder.encode(updatedFileName, StandardCharsets.UTF_8)
+                        + "?scale=" + scale
                 ))
                 .GET()
                 .build();
