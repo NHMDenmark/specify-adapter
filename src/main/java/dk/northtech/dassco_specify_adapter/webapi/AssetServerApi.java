@@ -1,17 +1,36 @@
 package dk.northtech.dassco_specify_adapter.webapi;
 
+import dk.northtech.dassco_specify_adapter.AMQP.QueueBroadcaster;
 import dk.northtech.dassco_specify_adapter.configuration.AssetServiceConfig;
 import dk.northtech.dassco_specify_adapter.domain.specify.LoginInfo;
 import dk.northtech.dassco_specify_adapter.services.AssetFileService;
 import dk.northtech.dassco_specify_adapter.services.SpecifyEndpointService;
+import dk.northtech.dassco_specify_adapter.services.TokenService;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.StreamingOutput;
+import org.apache.commons.imaging.Imaging;
+import org.apache.commons.imaging.common.ImageMetadata;
 import org.apache.tika.Tika;
 import org.glassfish.jersey.media.multipart.FormDataParam;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.bind.annotation.CrossOrigin;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.URLEncoder;
+import java.net.UnknownHostException;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 
 import static jakarta.ws.rs.core.MediaType.*;
 
@@ -20,23 +39,32 @@ public class AssetServerApi {
     private final AssetServiceConfig assetServiceConfig;
     private final SpecifyEndpointService specifyEndpointService;
     private final AssetFileService assetFileService;
+    private final TokenService tokenService;
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(AssetServerApi.class);
+
+    @Value("${asset-service.tokenRequiredForGet}")
+    private boolean tokenRequiredForGet;
 
     @Inject
-    public AssetServerApi(AssetServiceConfig assetServiceConfig, SpecifyEndpointService specifyEndpointService, AssetFileService assetFileService) {
+    public AssetServerApi(AssetServiceConfig assetServiceConfig, SpecifyEndpointService specifyEndpointService, AssetFileService assetFileService, TokenService tokenService) {
         this.assetServiceConfig = assetServiceConfig;
         this.specifyEndpointService = specifyEndpointService;
         this.assetFileService = assetFileService;
+        this.tokenService = tokenService;
     }
 
     @GET
     @Path("")
     public Response itWorks(){
+        LOGGER.info("ItWorks");
         return Response.status(200).entity("It works!").build();
     }
 
     @GET
     @Path("static/{path}")
-    public Response getStaticFiles(@PathParam("path") String path){
+    public Response getStaticFiles(@QueryParam("path") String path){
+        LOGGER.info("static/{path}");
         if(!Boolean.getBoolean(this.assetServiceConfig.allowStaticFileAccess())){
             return Response.status(404).build();
         }
@@ -46,43 +74,75 @@ public class AssetServerApi {
     @GET
     @Produces("text/plain;charset=UTF-8")
     @Path("getfileref")
-    public Response getFileRef(){
-        return Response.status(Response.Status.NOT_IMPLEMENTED).build();
+    public Response getFileRef(@QueryParam("coll") String coll, @QueryParam("type") String type, @QueryParam("filename") String filename, @QueryParam("scale") Integer scale){
+        LOGGER.info("getfileref");
+        try {
+            String hostname = InetAddress.getLocalHost().getCanonicalHostName();
+            String path = this.assetFileService.pathToUrlPath(type, coll, filename, scale);
+            return Response.status(Response.Status.OK).entity(hostname + "/" + path).build();
+        } catch (UnknownHostException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @GET
-    //@require_token('filename')
-    //r.set_header('Content-Disposition', "inline; filename*=utf-8''%s" % download_name)
     @Path("fileget")
     @Consumes(MULTIPART_FORM_DATA)
-    public Response getFile(@FormDataParam("coll") String coll, @FormDataParam("type") String type, @FormDataParam("filename") String filename, @FormDataParam("scale") Integer scale
-    ){
+    public Response getFile(@QueryParam("token") String token, @QueryParam("coll") String coll, @QueryParam("type") String type, @QueryParam("filename") String filename, @QueryParam("scale") Integer scale, @QueryParam("downloadname") String downloadName){
+        LOGGER.info("fileget");
+        if(this.tokenRequiredForGet) {
+            this.tokenService.validateToken(token, filename);
+        }
+
+        HttpResponse<InputStream> response = assetFileService.readFileFromParkedFiles(coll, type, filename, this.assetServiceConfig.fileFriendlyPostfix(), scale);
+        if(response.statusCode() != 200){
+            return Response.status(response.statusCode()).entity(response.body()).build();
+        }
         StreamingOutput streamingOutput = output -> {
-            try (InputStream is = assetFileService.readFileFromParkedFiles(coll, type, filename, this.assetServiceConfig.fileFriendlyPostfix(), scale)) {
+            try (InputStream is = response.body()) {
                 is.transferTo(output);
                 output.flush();
             }
         };
-        String updatedFileName = type.equals("T") && filename.contains(".pdf") ? filename.replace(".pdf", ".png") : filename;
+        String updatedFileName = filename;
+        if(type.equals("T") && updatedFileName.contains(".pdf")){
+            updatedFileName = updatedFileName.replace(".pdf", ".png");
+        } else if(type.equals("T") && updatedFileName.contains(".tif")){
+            updatedFileName = updatedFileName.replace(".tif", ".png");
+        }
+        if(downloadName != null){
+            String encodedName = URLEncoder.encode(downloadName, StandardCharsets.UTF_8).replace("+", "%20");
+            return Response.status(response.statusCode())
+                    .header("X-Timestamp", String.valueOf(System.currentTimeMillis()))
+                    .header("Content-Disposition", "inline; filename=*utf-8" + encodedName)
+                    .header("Content-Type", new Tika().detect(updatedFileName))
+                    .entity(streamingOutput).build();
+        }
         return Response.status(200)
+                .header("X-Timestamp", String.valueOf(System.currentTimeMillis()))
                 .header("Content-Disposition", "inline; attachment; filename=*utf-8" + updatedFileName)
-                .header("Content-Type", new Tika().detect(updatedFileName)).entity(streamingOutput).build();
+                .header("Content-Type", new Tika().detect(updatedFileName))
+                .entity(streamingOutput).build();
     }
 
     @OPTIONS
     //@allow_cross_origin
+    @CrossOrigin(originPatterns = "*")
     @Path("fileupload")
     public Response testFileUploadCors(){
+        LOGGER.info("fileupload::OPTIONS");
         return Response.status(Response.Status.OK).entity("").build();
     }
 
     @POST
-    //@allow_cross_origin-
-    //@require_token('store')
+    //@allow_cross_origin
     @Consumes(MULTIPART_FORM_DATA)
+    @CrossOrigin(originPatterns = "*")
     @Produces("text/plain;charset=UTF-8")
     @Path("fileupload")
     public Response fileUpload(@FormDataParam("file") InputStream file, @FormDataParam("token") String token, @FormDataParam("store") String store, @FormDataParam("type") String type, @FormDataParam("coll") String coll){
+        LOGGER.info("fileupload::POST");
+        this.tokenService.validateToken(token, store);
         if(file == null){
             return Response.status(Response.Status.BAD_REQUEST).entity("No file received").build();
         }
@@ -96,38 +156,106 @@ public class AssetServerApi {
 
         int status = this.assetFileService.postFileToParkedFiles(file, "originals", coll, store, this.assetServiceConfig.fileFriendlyPostfix());
 
-        return status == 200 ? Response.status(200).entity("Ok.").build() : Response.status(status).build();
+        return status == 200 ? Response.status(200).entity("Ok.").header("X-Timestamp", String.valueOf(System.currentTimeMillis())).build() : Response.status(status).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).build();
     }
 
     @POST
-    @Consumes(MULTIPART_FORM_DATA)
     @Produces("text/plain;charset=UTF-8")
     @Path("filedelete")
-    public Response deleteFile(){
-        return Response.status(Response.Status.NOT_IMPLEMENTED).build();
+    public Response deleteFile(@FormParam("coll") String coll, @FormParam("filename") String filename){
+        LOGGER.info("filedelete");
+        int status = assetFileService.deleteFileFromParkedFiles(coll, filename, this.assetServiceConfig.fileFriendlyPostfix());
+        return Response.status(status).entity(status == 200 ? "Ok." : "").build();
     }
 
     @GET
-    //@require_token('filename')
     @Produces(APPLICATION_JSON)
     @Path("getmetadata")
-    public Response getMetadata(@QueryParam("filename") String filename, @QueryParam("dt") String dt){
-        return Response.status(Response.Status.NOT_IMPLEMENTED).build();
+    public Response getMetadata(@QueryParam("token") String token, @QueryParam("filename") String filename, @QueryParam("coll") String coll, @QueryParam("dt") String dt){
+        LOGGER.info("getmetadata");
+        if(this.tokenRequiredForGet) {
+            this.tokenService.validateToken(token, filename);
+        }
+        HttpResponse<InputStream> response = assetFileService.readFileFromParkedFiles(coll, "O", filename, this.assetServiceConfig.fileFriendlyPostfix(), null);
+        if(response.statusCode() != 200){
+            return Response.status(response.statusCode()).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity(response.body()).build();
+        }
+
+        byte[] bytes;
+        try (InputStream in = response.body()) {
+            bytes = in.readAllBytes();
+        } catch (IOException e) {
+            LOGGER.error(e.getMessage());
+            return Response.status(Response.Status.NOT_FOUND).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity("Missing file: %s".formatted(filename)).build();
+        }
+        try {
+            Map<String, String> metaMap = new LinkedHashMap<>();
+            ImageMetadata genericMeta = Imaging.getMetadata(bytes);
+            if(genericMeta != null){
+                for (ImageMetadata.ImageMetadataItem item : genericMeta.getItems()) {
+                    String text = item.toString();
+                    int idx = text.indexOf(':');
+                    if (idx > 0) {
+                        String key = text.substring(0, idx).trim();
+                        String value = text.substring(idx + 1).trim();
+                        metaMap.put(key, value);
+                    } else {
+                        metaMap.put(text, "");
+                    }
+                }
+            }
+
+            if(Objects.equals(dt, "date")){
+                String dateTimeOriginal = metaMap.get("EXIF DateTimeOriginal");
+                if(dateTimeOriginal != null){
+                    return Response.status(Response.Status.OK).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity(dateTimeOriginal).build();
+                }else{
+                    return Response.status(Response.Status.NOT_FOUND).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity("DateTime not found in EXIF").build();
+                }
+            }
+
+            JSONArray jsonArray = new JSONArray();
+            for (Map.Entry<String, String> entry : metaMap.entrySet()) {
+                JSONObject obj = new JSONObject();
+                obj.put("Name", entry.getKey());
+                obj.put("Fields", entry.getValue());
+                jsonArray.put(obj);
+            }
+            return Response.status(Response.Status.OK).entity(jsonArray.toString()).build();
+
+
+        } catch (IOException e) {
+            LOGGER.error(e.getMessage());
+            return Response.status(Response.Status.OK).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).build();
+        }
     }
 
     @GET
-    //@require_token('random', always=True)
     @Produces("text/plain;charset=UTF-8")
     @Path("testkey")
-    public Response testAccessKey(){
-        return Response.status(Response.Status.NOT_IMPLEMENTED).build();
+    public Response testTokenWorks(@QueryParam("token") String token, @QueryParam("random") String random){
+        LOGGER.info("testkey");
+        //overrides -> tokenRequiredForGet
+        this.tokenService.validateToken(token, random);
+        return Response.status(Response.Status.OK).entity("Ok.").build();
     }
 
     @GET
-    //@include_timestamp
     @Produces("text/xml;charset=UTF-8")
     @Path("web_asset_store.xml")
     public Response serveXmlDescriptionOfUrlsAvailable(){
-        return Response.status(Response.Status.NOT_IMPLEMENTED).build();
-    }
+        LOGGER.info("web_asset_store.xml");
+        String hostname = "host.docker.internal";
+        String xml = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <urls>
+                    <url type="read"><![CDATA[http://{{host}}:80/fileget]]></url>
+                    <url type="write"><![CDATA[http://{{host}}:80/fileupload]]></url>
+                    <url type="delete"><![CDATA[http://{{host}}:80/filedelete]]></url>
+                    <url type="getmetadata"><![CDATA[http://{{host}}:80/getmetadata]]></url>
+                    <url type="testkey">http://{{host}}:80/testkey</url>
+                </urls>
+                """.replace("{{host}}", hostname);
+        return Response.status(Response.Status.OK).entity(xml).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).build();
+}
 }

@@ -13,6 +13,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
@@ -76,8 +77,16 @@ public class SecurityConfig {
 
   @Bean
   CorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration config = new CorsConfiguration();
+    config.setAllowedOriginPatterns(List.of("*"));      // allow any origin (works with credentials)
+    config.setAllowedMethods(List.of("*"));             // any method
+    config.setAllowedHeaders(List.of("*"));             // any header
+    config.setExposedHeaders(List.of("*"));             // expose all (optional)
+    config.setAllowCredentials(true);                   // allow cookies/auth if sent
+    config.setMaxAge(java.time.Duration.ofHours(1));
+
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-    source.registerCorsConfiguration("/**", this.corsHeaders.getCorsConfiguration());
+    source.registerCorsConfiguration("/**", config);
     return source;
   }
 

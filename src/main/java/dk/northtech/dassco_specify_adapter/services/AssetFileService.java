@@ -107,6 +107,13 @@ public class AssetFileService {
 //            }
     }
 
+    public String pathToUrlPath(String type, String collection, String filename, Integer scale){
+        return
+                URLEncoder.encode(collection, StandardCharsets.UTF_8) +
+                "/" + URLEncoder.encode((Objects.equals(type, "T") ? "thumbnails" : "originals"), StandardCharsets.UTF_8) +
+                "/" + URLEncoder.encode((Objects.equals(type, "T") ? filename.replace(".", "_%s.".formatted(scale)) : filename), StandardCharsets.UTF_8);
+    }
+
     public int postFileToParkedFiles(InputStream file, String type, String collection, String filename, String pathPostFix){
         Supplier<InputStream> streamSupplier = () -> file;
         HttpRequest request = HttpRequest.newBuilder()
@@ -137,7 +144,7 @@ public class AssetFileService {
         return response.statusCode();
     }
 
-    public InputStream readFileFromParkedFiles(String coll, String type, String filename, String pathPostFix, Integer scale){
+    public HttpResponse<InputStream> readFileFromParkedFiles(String coll, String type, String filename, String pathPostFix, Integer scale){
         String updatedFileName =  Objects.equals(type, "T") ? filename.replace(".", "_%s.".formatted(scale)) : filename;
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(fileProxyProperties.rootUrl()
@@ -146,7 +153,7 @@ public class AssetFileService {
                         + URLEncoder.encode(coll, StandardCharsets.UTF_8) + "/"
                         + URLEncoder.encode(Objects.equals(type, "T") ? "thumbnails" : "originals", StandardCharsets.UTF_8) + "/"
                         + URLEncoder.encode(updatedFileName, StandardCharsets.UTF_8)
-                        + "?scale=" + scale
+                        + (scale != null ? "?scale=" + scale : "")
                 ))
                 .GET()
                 .build();
@@ -161,9 +168,29 @@ public class AssetFileService {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
+        return response;
+    }
 
-        return response.body();
-
+    public int deleteFileFromParkedFiles(String coll, String filename, String pathPostFix){
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(fileProxyProperties.rootUrl()
+                        + "/file_proxy/api/assetfiles/parkedfiles/"
+                        + URLEncoder.encode(pathPostFix, StandardCharsets.UTF_8) + "/"
+                        + URLEncoder.encode(coll, StandardCharsets.UTF_8) + "/"
+                        + URLEncoder.encode("originals", StandardCharsets.UTF_8) + "/"
+                        + URLEncoder.encode(filename, StandardCharsets.UTF_8)
+                ))
+                .DELETE()
+                .build();
+        HttpClient httpClient = HttpClient.newHttpClient();
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            return response.statusCode();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
 
     }
 }
