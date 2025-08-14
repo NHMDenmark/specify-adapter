@@ -1,6 +1,10 @@
 package dk.northtech.dassco_specify_adapter.webapi;
 
-import dk.northtech.dassco_specify_adapter.AMQP.QueueBroadcaster;
+import com.drew.imaging.ImageMetadataReader;
+import com.drew.imaging.ImageProcessingException;
+import com.drew.metadata.Directory;
+import com.drew.metadata.Metadata;
+import com.drew.metadata.Tag;
 import dk.northtech.dassco_specify_adapter.configuration.AssetServiceConfig;
 import dk.northtech.dassco_specify_adapter.domain.specify.LoginInfo;
 import dk.northtech.dassco_specify_adapter.services.AssetFileService;
@@ -10,8 +14,6 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.StreamingOutput;
-import org.apache.commons.imaging.Imaging;
-import org.apache.commons.imaging.common.ImageMetadata;
 import org.apache.tika.Tika;
 import org.glassfish.jersey.media.multipart.FormDataParam;
 import org.json.JSONArray;
@@ -21,10 +23,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.CrossOrigin;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.net.InetAddress;
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
@@ -181,27 +180,16 @@ public class AssetServerApi {
             return Response.status(response.statusCode()).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity(response.body()).build();
         }
 
-        byte[] bytes;
-        try (InputStream in = response.body()) {
-            bytes = in.readAllBytes();
-        } catch (IOException e) {
-            LOGGER.error(e.getMessage());
-            return Response.status(Response.Status.NOT_FOUND).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity("Missing file: %s".formatted(filename)).build();
-        }
-        try {
+        try (InputStream is = new BufferedInputStream(response.body())) {
+            Metadata metadata = ImageMetadataReader.readMetadata(is);
             Map<String, String> metaMap = new LinkedHashMap<>();
-            ImageMetadata genericMeta = Imaging.getMetadata(bytes);
-            if(genericMeta != null){
-                for (ImageMetadata.ImageMetadataItem item : genericMeta.getItems()) {
-                    String text = item.toString();
-                    int idx = text.indexOf(':');
-                    if (idx > 0) {
-                        String key = text.substring(0, idx).trim();
-                        String value = text.substring(idx + 1).trim();
-                        metaMap.put(key, value);
-                    } else {
-                        metaMap.put(text, "");
-                    }
+
+            for (Directory directory : metadata.getDirectories()) {
+                String dirPrefix = assetFileService.normalizeMetadataDirectoryName(directory.getName());
+                for (Tag tag : directory.getTags()) {
+                    String tagName = assetFileService.normalizeMetadataTagName(tag.getTagName());
+                    String key = dirPrefix + " " + tagName;
+                    metaMap.put(key, tag.getDescription());
                 }
             }
 
@@ -221,12 +209,14 @@ public class AssetServerApi {
                 obj.put("Fields", entry.getValue());
                 jsonArray.put(obj);
             }
-            return Response.status(Response.Status.OK).entity(jsonArray.toString()).build();
+
+            return Response.status(Response.Status.OK).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity(jsonArray.toString()).build();
 
 
-        } catch (IOException e) {
+        } catch (IOException | ImageProcessingException e) {
             LOGGER.error(e.getMessage());
             return Response.status(Response.Status.OK).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).build();
+
         }
     }
 

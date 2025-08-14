@@ -148,12 +148,13 @@ public class AssetFileService {
         String updatedFileName =  Objects.equals(type, "T") ? filename.replace(".", "_%s.".formatted(scale)) : filename;
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(fileProxyProperties.rootUrl()
-                        + "/file_proxy/api/assetfiles/parkedfiles/"
-                        + URLEncoder.encode(pathPostFix, StandardCharsets.UTF_8) + "/"
-                        + URLEncoder.encode(coll, StandardCharsets.UTF_8) + "/"
-                        + URLEncoder.encode(Objects.equals(type, "T") ? "thumbnails" : "originals", StandardCharsets.UTF_8) + "/"
-                        + URLEncoder.encode(updatedFileName, StandardCharsets.UTF_8)
-                        + (scale != null ? "?scale=" + scale : "")
+                        + "/file_proxy/api/assetfiles/parkedfiles"
+                        + "?institution=NHMD"
+                        + "&pathPostFix=" + URLEncoder.encode(pathPostFix, StandardCharsets.UTF_8)
+                        + "&collection=" + URLEncoder.encode(coll, StandardCharsets.UTF_8)
+                        + "&type=" + URLEncoder.encode(Objects.equals(type, "T") ? "thumbnails" : "originals", StandardCharsets.UTF_8)
+                        + "&filename=" + URLEncoder.encode(updatedFileName, StandardCharsets.UTF_8)
+                        + (scale != null ? "&scale=" + scale : "")
                 ))
                 .GET()
                 .build();
@@ -192,5 +193,24 @@ public class AssetFileService {
             throw new RuntimeException(e);
         }
 
+    }
+
+    public String normalizeMetadataDirectoryName(String name) {
+        if (name.equalsIgnoreCase("Exif SubIFD")) return "EXIF";
+        if (name.equalsIgnoreCase("Exif IFD0")) return "Image";
+        if (name.toUpperCase().startsWith("GPS")) return "GPS";
+        return name;
+    }
+
+    public String normalizeMetadataTagName(String name) {
+        String[] parts = name.replace("/", " ").split("\\s+");
+        StringBuilder sb = new StringBuilder();
+        for (String part : parts) {
+            if (!part.isEmpty()) {
+                sb.append(part.substring(0, 1).toUpperCase());
+                if (part.length() > 1) sb.append(part.substring(1));
+            }
+        }
+        return sb.toString();
     }
 }
