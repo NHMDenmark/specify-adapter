@@ -10,6 +10,7 @@ import dk.northtech.dassco_specify_adapter.domain.SpecifyAdapterException;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -29,6 +30,9 @@ public class AssetFileService {
 
     FileProxyProperties fileProxyProperties;
     private static final Logger logger = LoggerFactory.getLogger(AssetFileService.class);
+
+    @Value("${asset-service.institution}")
+    private String institution;
 
     @Inject
     public AssetFileService(FileProxyProperties fileProxyProperties) {
@@ -107,9 +111,10 @@ public class AssetFileService {
 //            }
     }
 
-    public String pathToUrlPath(String type, String collection, String filename, Integer scale){
+    public String pathToUrlPath(String type, String collection, String filename, String pathPostFix, Integer scale){
         return
-                URLEncoder.encode(collection, StandardCharsets.UTF_8) +
+                URLEncoder.encode(pathPostFix, StandardCharsets.UTF_8) +
+                "/" + URLEncoder.encode(collection, StandardCharsets.UTF_8) +
                 "/" + URLEncoder.encode((Objects.equals(type, "T") ? "thumbnails" : "originals"), StandardCharsets.UTF_8) +
                 "/" + URLEncoder.encode((Objects.equals(type, "T") ? filename.replace(".", "_%s.".formatted(scale)) : filename), StandardCharsets.UTF_8);
     }
@@ -149,7 +154,7 @@ public class AssetFileService {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(fileProxyProperties.rootUrl()
                         + "/file_proxy/api/assetfiles/parkedfiles"
-                        + "?institution=NHMD"
+                        + "?institution=" + URLEncoder.encode(this.institution, StandardCharsets.UTF_8)
                         + "&pathPostFix=" + URLEncoder.encode(pathPostFix, StandardCharsets.UTF_8)
                         + "&collection=" + URLEncoder.encode(coll, StandardCharsets.UTF_8)
                         + "&type=" + URLEncoder.encode(Objects.equals(type, "T") ? "thumbnails" : "originals", StandardCharsets.UTF_8)
@@ -166,6 +171,34 @@ public class AssetFileService {
         } catch (IOException e) {
             logger.error(e.getMessage(), e);
             throw new SpecifyAdapterException("Failed to fetch Parked file from file proxy ", AcknowledgeStatus.PARKED_FILE_DOWNLOAD_ERROR);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        return response;
+    }
+
+    public HttpResponse<String> readFilePathFromParkedFiles(String coll, String type, String filename, String pathPostFix, Integer scale){
+        String updatedFileName =  Objects.equals(type, "T") ? filename.replace(".", "_%s.".formatted(scale)) : filename;
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(fileProxyProperties.rootUrl()
+                        + "/file_proxy/api/assetfiles/parkedfiles/filepath"
+                        + "?institution=" + URLEncoder.encode(this.institution, StandardCharsets.UTF_8)
+                        + "&pathPostFix=" + URLEncoder.encode(pathPostFix, StandardCharsets.UTF_8)
+                        + "&collection=" + URLEncoder.encode(coll, StandardCharsets.UTF_8)
+                        + "&type=" + URLEncoder.encode(Objects.equals(type, "T") ? "thumbnails" : "originals", StandardCharsets.UTF_8)
+                        + "&filename=" + URLEncoder.encode(updatedFileName, StandardCharsets.UTF_8)
+                        + (scale != null ? "&scale=" + scale : "")
+                ))
+                .GET()
+                .build();
+
+        HttpClient httpClient = HttpClient.newHttpClient();
+        HttpResponse<String> response;
+        try {
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException e) {
+            logger.error(e.getMessage(), e);
+            throw new SpecifyAdapterException("Failed to fetch Parked file path from file proxy ", AcknowledgeStatus.PARKED_FILE_PATH_ERROR);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }

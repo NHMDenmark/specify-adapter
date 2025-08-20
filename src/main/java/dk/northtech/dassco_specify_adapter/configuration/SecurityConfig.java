@@ -77,17 +77,21 @@ public class SecurityConfig {
 
   @Bean
   CorsConfigurationSource corsConfigurationSource() {
-    CorsConfiguration config = new CorsConfiguration();
-    config.setAllowedOriginPatterns(List.of("*"));      // allow any origin (works with credentials)
-    config.setAllowedMethods(List.of("*"));             // any method
-    config.setAllowedHeaders(List.of("*"));             // any header
-    config.setExposedHeaders(List.of("*"));             // expose all (optional)
-    config.setAllowCredentials(true);                   // allow cookies/auth if sent
-    config.setMaxAge(java.time.Duration.ofHours(1));
-
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-    source.registerCorsConfiguration("/**", config);
-    return source;
+    source.registerCorsConfiguration("/**", this.corsHeaders.getCorsConfiguration());
+
+    UrlBasedCorsConfigurationSource fileUploadSource = new UrlBasedCorsConfigurationSource();
+    CorsConfiguration openCors = new CorsConfiguration();
+    openCors.setAllowedOrigins(List.of("*"));
+    openCors.setAllowedMethods(List.of("POST", "OPTIONS"));
+    fileUploadSource.registerCorsConfiguration("/fileupload", openCors);
+
+    return request -> {
+      if ("/fileupload".equals(request.getRequestURI())) {
+        return fileUploadSource.getCorsConfiguration(request);
+      }
+      return source.getCorsConfiguration(request); // apply to everything else
+    };
   }
 
   @Bean("no-auth")

@@ -21,10 +21,12 @@ import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.web.bind.annotation.CrossOrigin;
 
 import java.io.*;
 import java.net.InetAddress;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.net.UnknownHostException;
 import java.net.http.HttpResponse;
@@ -45,12 +47,18 @@ public class AssetServerApi {
     @Value("${asset-service.tokenRequiredForGet}")
     private boolean tokenRequiredForGet;
 
+    private ServerProperties serverProperties;
+
+    String hostname = "host.docker.internal";
+
+
     @Inject
-    public AssetServerApi(AssetServiceConfig assetServiceConfig, SpecifyEndpointService specifyEndpointService, AssetFileService assetFileService, TokenService tokenService) {
+    public AssetServerApi(AssetServiceConfig assetServiceConfig, SpecifyEndpointService specifyEndpointService, AssetFileService assetFileService, TokenService tokenService, ServerProperties serverProperties) {
         this.assetServiceConfig = assetServiceConfig;
         this.specifyEndpointService = specifyEndpointService;
         this.assetFileService = assetFileService;
         this.tokenService = tokenService;
+        this.serverProperties = serverProperties;
     }
 
     @GET
@@ -61,13 +69,51 @@ public class AssetServerApi {
     }
 
     @GET
-    @Path("static/{path}")
-    public Response getStaticFiles(@QueryParam("path") String path){
+    @Path("static/{path: .+}")
+    public Response getStaticFiles(@PathParam("path") String path){
         LOGGER.info("static/{path}");
-        if(!Boolean.getBoolean(this.assetServiceConfig.allowStaticFileAccess())){
+        if(!Boolean.parseBoolean(this.assetServiceConfig.allowStaticFileAccess())){
             return Response.status(404).build();
         }
-        return Response.status(Response.Status.NOT_IMPLEMENTED).build();
+
+        String[] pathParts = path.split("/");
+        if(pathParts.length < 4){
+            return Response.status(404).build();
+        }
+
+        String fileFriendlyPostfix = pathParts[0];
+        String coll = pathParts[1];
+        String type = pathParts[2];
+        String filename = pathParts[3];
+        HttpResponse<InputStream> response = assetFileService.readFileFromParkedFiles(URLDecoder.decode(coll, StandardCharsets.UTF_8), type, filename, URLDecoder.decode(fileFriendlyPostfix, StandardCharsets.UTF_8), null);
+        if(response.statusCode() != 200){
+            return Response.status(response.statusCode()).entity(response.body()).build();
+        }
+        StreamingOutput streamingOutput = output -> {
+            try (InputStream is = response.body()) {
+                is.transferTo(output);
+                output.flush();
+            }
+        };
+        String updatedFileName = filename;
+        if(type.equals("T") && updatedFileName.contains(".pdf")){
+            updatedFileName = updatedFileName.replace(".pdf", ".png");
+        } else if(type.equals("T") && updatedFileName.contains(".tif")){
+            updatedFileName = updatedFileName.replace(".tif", ".png");
+        }
+        if(filename != null){
+            String encodedName = URLEncoder.encode(filename, StandardCharsets.UTF_8).replace("+", "%20");
+            return Response.status(response.statusCode())
+                    .header("X-Timestamp", String.valueOf(System.currentTimeMillis()))
+//                    .header("Content-Disposition", "inline; filename=*utf-8" + encodedName)
+                    .header("Content-Type", new Tika().detect(updatedFileName))
+                    .entity(streamingOutput).build();
+        }
+        return Response.status(200)
+                .header("X-Timestamp", String.valueOf(System.currentTimeMillis()))
+                .header("Content-Disposition", "inline; attachment; filename=*utf-8" + updatedFileName)
+                .header("Content-Type", new Tika().detect(updatedFileName))
+                .entity(streamingOutput).build();
     }
 
     @GET
@@ -75,13 +121,12 @@ public class AssetServerApi {
     @Path("getfileref")
     public Response getFileRef(@QueryParam("coll") String coll, @QueryParam("type") String type, @QueryParam("filename") String filename, @QueryParam("scale") Integer scale){
         LOGGER.info("getfileref");
-        try {
-            String hostname = InetAddress.getLocalHost().getCanonicalHostName();
-            String path = this.assetFileService.pathToUrlPath(type, coll, filename, scale);
-            return Response.status(Response.Status.OK).entity(hostname + "/" + path).build();
-        } catch (UnknownHostException e) {
-            throw new RuntimeException(e);
+        String path = this.assetFileService.pathToUrlPath(type, coll, filename, this.assetServiceConfig.fileFriendlyPostfix(), scale);
+        var response = this.assetFileService.readFilePathFromParkedFiles(coll, type, filename, this.assetServiceConfig.fileFriendlyPostfix(), scale);
+        if(response.statusCode() == 200){
+            return Response.status(200).entity(this.hostname + ":" + this.serverProperties.getPort() + "/static/" + path).build();
         }
+        return Response.status(response.statusCode()).entity(response.body()).build();
     }
 
     @GET
@@ -125,8 +170,6 @@ public class AssetServerApi {
     }
 
     @OPTIONS
-    //@allow_cross_origin
-    @CrossOrigin(originPatterns = "*")
     @Path("fileupload")
     public Response testFileUploadCors(){
         LOGGER.info("fileupload::OPTIONS");
@@ -134,7 +177,6 @@ public class AssetServerApi {
     }
 
     @POST
-    //@allow_cross_origin
     @Consumes(MULTIPART_FORM_DATA)
     @CrossOrigin(originPatterns = "*")
     @Produces("text/plain;charset=UTF-8")
@@ -235,17 +277,16 @@ public class AssetServerApi {
     @Path("web_asset_store.xml")
     public Response serveXmlDescriptionOfUrlsAvailable(){
         LOGGER.info("web_asset_store.xml");
-        String hostname = "host.docker.internal";
         String xml = """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <urls>
-                    <url type="read"><![CDATA[http://{{host}}:80/fileget]]></url>
-                    <url type="write"><![CDATA[http://{{host}}:80/fileupload]]></url>
-                    <url type="delete"><![CDATA[http://{{host}}:80/filedelete]]></url>
-                    <url type="getmetadata"><![CDATA[http://{{host}}:80/getmetadata]]></url>
-                    <url type="testkey">http://{{host}}:80/testkey</url>
+                    <url type="read"><![CDATA[http://{{host}}:{{serverPort}}/fileget]]></url>
+                    <url type="write"><![CDATA[http://{{host}}:{{serverPort}}/fileupload]]></url>
+                    <url type="delete"><![CDATA[http://{{host}}:{{serverPort}}/filedelete]]></url>
+                    <url type="getmetadata"><![CDATA[http://{{host}}:{{serverPort}}/getmetadata]]></url>
+                    <url type="testkey">http://{{host}}:{{serverPort}}/testkey</url>
                 </urls>
-                """.replace("{{host}}", hostname);
+                """.replace("{{host}}", hostname).replace("{{serverPort}}", this.serverProperties.getPort().toString());
         return Response.status(Response.Status.OK).entity(xml).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).build();
 }
 }
