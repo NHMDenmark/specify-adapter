@@ -36,10 +36,6 @@ public abstract class QueueListener extends AbstractExecutionThreadService {
         return this.queueName;
     }
 
-    String token() {
-        return this.keycloakService.getUserServiceToken();
-    }
-
     private String hostname() {
         return this.amqpConfig.host();
     }
@@ -55,13 +51,16 @@ public abstract class QueueListener extends AbstractExecutionThreadService {
     }
 
     protected void initSession() {
+
         try {
-            QueueConnection queueConnection = getQueueConnectionFactory().createQueueConnection("", token());
+            QueueConnection queueConnection = getQueueConnectionFactory().createQueueConnection("", this.keycloakService.getQueueToken());
             queueConnection.setExceptionListener(new MyExceptionListener());
             queueConnection.start();
             connection = queueConnection;
             session = queueConnection.createQueueSession(false, Session.DUPS_OK_ACKNOWLEDGE);
             lastRestart = Instant.now();
+            LOGGER.info("Successfully restarted Q"
+            );
         } catch (JMSException e) {
             throw new RuntimeException("QueueListener failed to setup the connection", e);
         }

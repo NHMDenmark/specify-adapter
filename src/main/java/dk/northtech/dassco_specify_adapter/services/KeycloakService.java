@@ -46,10 +46,10 @@ public class KeycloakService {
             // Validate the expiration
             // If it's almost ran out, try to refresh
             if (keycloakToken.accessExpirationTimeStamp().isBefore(Instant.now().plusSeconds(30))) {
-                LOGGER.debug("KeycloakService: Attempt refresh!");
+                LOGGER.info("KeycloakService: Attempt refresh!");
                 // If the refresh token is still valid, use refresh token
                 if (keycloakToken.refreshExpirationTimeStamp().isBefore(Instant.now().plusSeconds(30))) {
-                    LOGGER.debug("KeycloakService: Refreshing!");
+                    LOGGER.info("KeycloakService: Refreshing!");
                     return newAccessToken().accessToken();
                 }
                 // If it's not valid, then fall through and create a new token
@@ -104,7 +104,6 @@ public class KeycloakService {
                             + "client_id=" + this.keycloakUserConfig.clientId() + "&" + "client_secret=" + this.keycloakUserConfig.clientSecret()
                             + "&scope=openid offline_access"))
                     .build();
-
             HttpResponse<String> response = HttpClient.newBuilder()
                     .build()
                     .send(request, HttpResponse.BodyHandlers.ofString());
@@ -117,5 +116,7 @@ public class KeycloakService {
         }
 
     }
-
+    public String getQueueToken(){
+        return newAccessToken().accessToken();
+    }
 }
