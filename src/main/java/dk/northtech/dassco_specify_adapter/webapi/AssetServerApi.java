@@ -10,6 +10,8 @@ import dk.northtech.dassco_specify_adapter.domain.specify.LoginInfo;
 import dk.northtech.dassco_specify_adapter.services.AssetFileService;
 import dk.northtech.dassco_specify_adapter.services.SpecifyEndpointService;
 import dk.northtech.dassco_specify_adapter.services.TokenService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.Response;
@@ -25,10 +27,8 @@ import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.web.bind.annotation.CrossOrigin;
 
 import java.io.*;
-import java.net.InetAddress;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
-import java.net.UnknownHostException;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -36,6 +36,7 @@ import java.util.*;
 import static jakarta.ws.rs.core.MediaType.*;
 
 @Path("/")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "Asset Files", description = "Endpoints related to assets' files.")
 public class AssetServerApi {
     private final AssetServiceConfig assetServiceConfig;
     private final SpecifyEndpointService specifyEndpointService;
@@ -62,6 +63,8 @@ public class AssetServerApi {
     }
 
     @GET
+    @Operation(summary = "Checks that there is a connection through")
+    @ApiResponse(responseCode = "200", description = "It works!")
     @Path("")
     public Response itWorks(){
         LOGGER.info("ItWorks");
@@ -69,6 +72,8 @@ public class AssetServerApi {
     }
 
     @GET
+    @Operation(summary = "Serve static files to the client")
+    @ApiResponse(responseCode = "200", description = "A file with the correct media type header")
     @Path("static/{path: .+}")
     public Response getStaticFiles(@PathParam("path") String path){
         LOGGER.info("static/{path}");
@@ -117,6 +122,8 @@ public class AssetServerApi {
     }
 
     @GET
+    @Operation(summary = "Returns a URL to the static file indicated by the query parameters")
+    @ApiResponse(responseCode = "200", description = "A static url for a given file")
     @Produces("text/plain;charset=UTF-8")
     @Path("getfileref")
     public Response getFileRef(@QueryParam("coll") String coll, @QueryParam("type") String type, @QueryParam("filename") String filename, @QueryParam("scale") Integer scale){
@@ -130,6 +137,8 @@ public class AssetServerApi {
     }
 
     @GET
+    @Operation(summary = "Returns the file data of the file indicated by the query parameters in File proxy")
+    @ApiResponse(responseCode = "200", description = "Returns a file")
     @Path("fileget")
     @Consumes(MULTIPART_FORM_DATA)
     public Response getFile(@QueryParam("token") String token, @QueryParam("coll") String coll, @QueryParam("type") String type, @QueryParam("filename") String filename, @QueryParam("scale") Integer scale, @QueryParam("downloadname") String downloadName){
@@ -170,6 +179,8 @@ public class AssetServerApi {
     }
 
     @OPTIONS
+    @Operation(summary = "Tests if cross origin is allowed for fileupload")
+    @ApiResponse(responseCode = "200", description = "Blank response")
     @Path("fileupload")
     public Response testFileUploadCors(){
         LOGGER.info("fileupload::OPTIONS");
@@ -177,6 +188,8 @@ public class AssetServerApi {
     }
 
     @POST
+    @Operation(summary = "Uploades a file to the parking spot in the File Proxy")
+    @ApiResponse(responseCode = "200", description = "Ok.")
     @Consumes(MULTIPART_FORM_DATA)
     @CrossOrigin(originPatterns = "*")
     @Produces("text/plain;charset=UTF-8")
@@ -201,6 +214,8 @@ public class AssetServerApi {
     }
 
     @POST
+    @Operation(summary = "Deletes a file in the parking spot in the File Proxy")
+    @ApiResponse(responseCode = "200", description = "Ok.")
     @Produces("text/plain;charset=UTF-8")
     @Path("filedelete")
     public Response deleteFile(@FormParam("coll") String coll, @FormParam("filename") String filename){
@@ -210,6 +225,8 @@ public class AssetServerApi {
     }
 
     @GET
+    @Operation(summary = "Returns a map of metadata for the file indicated by the query parameters, or the DateTimeOriginal only if dt = date")
+    @ApiResponse(responseCode = "200", description = "Metadata map or a single metadata value (DateTimeOriginal)")
     @Produces(APPLICATION_JSON)
     @Path("getmetadata")
     public Response getMetadata(@QueryParam("token") String token, @QueryParam("filename") String filename, @QueryParam("coll") String coll, @QueryParam("dt") String dt){
@@ -263,6 +280,8 @@ public class AssetServerApi {
     }
 
     @GET
+    @Operation(summary = "Tests that the secret to generate and validate the tokens are correctly configured")
+    @ApiResponse(responseCode = "200", description = "Ok.")
     @Produces("text/plain;charset=UTF-8")
     @Path("testkey")
     public Response testTokenWorks(@QueryParam("token") String token, @QueryParam("random") String random){
@@ -273,6 +292,8 @@ public class AssetServerApi {
     }
 
     @GET
+    @Operation(summary = "Returns a web_asset_store.xml that maps a name to an endpoint")
+    @ApiResponse(responseCode = "200", description = "web_asset_store.xml")
     @Produces("text/xml;charset=UTF-8")
     @Path("web_asset_store.xml")
     public Response serveXmlDescriptionOfUrlsAvailable(){

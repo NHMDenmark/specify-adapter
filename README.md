@@ -17,3 +17,41 @@
   - Puts the updated Collection Object in Specify.
   - Logs out the user.
 
+
+## How to run Specify locally
+
+* Clone or download the following repositories
+  * Specify7
+  * DaSSCo-file-proxy
+  * specify-adapter
+  * DaSSCo-asset-service
+* Copy the content from specify-adapter **docker-compose-specify.yaml** into specify7 docker-compose.yaml
+* Copy the following docker compose files from DaSSCo-file-proxy into specify
+  * **docker-compose-jaeger.yaml**
+  * **docker-compose-rabbitmq.yaml**
+  * **docker-compose-postgres.yaml**
+  * **docker-compose-postgres.yaml**
+  * **docker-compose-keycloak.yaml**
+* In specify7 open **nginx.conf** and change **set $backend** url to `http://asset-server:80` for the asset server
+* Follow the specify7 instructions for seeding the database (how to create the .sql file and how to apply it the MariaDb)
+* Run the following in specify7
+  * Run `docker compose up database keycloak rabbitmq jaeger app`
+  * Run `docker compose up asset-server` when **app** is running
+  * Run `docker compose up` when **asset-server** is running
+* Run DaSSCo-asset-service to create the tables used in DaSSCo-file-proxy
+* Go to localhost:80 in your browser -> the login is the one you made when making the .sql file for seeding
+
+
+### Python code to generate a token
+```
+import time
+import datetime
+import hmac
+
+key = 'test_attachment_key'
+timestamp = str(int(time.time())*1000)
+filename = 'dd7cb124-7170-421d-ab4e-4da34c9d4c8d.jpg'
+
+mac = hmac.new(key.encode(), timestamp.encode() + filename.encode(), 'md5')
+print(':'.join((mac.hexdigest(), timestamp)))
+```

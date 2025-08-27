@@ -29,14 +29,16 @@ import java.util.function.Supplier;
 public class AssetFileService {
 
     FileProxyProperties fileProxyProperties;
+    KeycloakService keycloakService;
     private static final Logger logger = LoggerFactory.getLogger(AssetFileService.class);
 
     @Value("${asset-service.institution}")
     private String institution;
 
     @Inject
-    public AssetFileService(FileProxyProperties fileProxyProperties) {
+    public AssetFileService(FileProxyProperties fileProxyProperties, KeycloakService keycloakService) {
         this.fileProxyProperties = fileProxyProperties;
+        this.keycloakService = keycloakService;
     }
 
     public List<String> getAssetFiles(String assetGuid, String token) {
@@ -132,6 +134,7 @@ public class AssetFileService {
                                         + "/" + URLEncoder.encode(filename, StandardCharsets.UTF_8)
                         )
                 )
+                .header("Authorization", "Bearer " + this.keycloakService.getUserServiceToken())
                 .header("Content-Type", "application/octet-stream")
                 .POST(HttpRequest.BodyPublishers.ofInputStream(streamSupplier))
                 .build();
@@ -161,6 +164,7 @@ public class AssetFileService {
                         + "&filename=" + URLEncoder.encode(updatedFileName, StandardCharsets.UTF_8)
                         + (scale != null ? "&scale=" + scale : "")
                 ))
+                .header("Authorization", "Bearer " + this.keycloakService.getUserServiceToken())
                 .GET()
                 .build();
 
@@ -189,6 +193,7 @@ public class AssetFileService {
                         + "&filename=" + URLEncoder.encode(updatedFileName, StandardCharsets.UTF_8)
                         + (scale != null ? "&scale=" + scale : "")
                 ))
+                .header("Authorization", "Bearer " + this.keycloakService.getUserServiceToken())
                 .GET()
                 .build();
 
@@ -214,6 +219,7 @@ public class AssetFileService {
                         + URLEncoder.encode("originals", StandardCharsets.UTF_8) + "/"
                         + URLEncoder.encode(filename, StandardCharsets.UTF_8)
                 ))
+                .header("Authorization", "Bearer " + this.keycloakService.getUserServiceToken())
                 .DELETE()
                 .build();
         HttpClient httpClient = HttpClient.newHttpClient();
