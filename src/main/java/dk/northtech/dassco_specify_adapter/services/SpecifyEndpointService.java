@@ -449,6 +449,8 @@ public class SpecifyEndpointService {
             } else if (response.statusCode() == 403) {
                 throw new RuntimeException("Forbidden. Most likely scenario is a fail in the CSRF token.");
             } else {
+                String json = response.body();
+                logger.error(json);
                 throw new RuntimeException("Something failed when getting the Upload Params");
             }
         } catch (IOException | InterruptedException e) {

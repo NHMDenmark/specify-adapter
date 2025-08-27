@@ -43,9 +43,6 @@ public class QueueBroadcaster extends AbstractIdleService {
         return this.amqpConfig.acknowledgeQueueName();
     }
 
-    private String token() {
-        return this.keycloakService.getUserServiceToken();
-    }
 
     private String hostname() {
         return this.amqpConfig.host();
@@ -64,7 +61,7 @@ public class QueueBroadcaster extends AbstractIdleService {
 
     protected void init() {
         try {
-            this.queueConnection = getQueueConnectionFactory().createQueueConnection("", token());
+            this.queueConnection = getQueueConnectionFactory().createQueueConnection("", this.keycloakService.getQueueToken());
             this.queueConnection.start();
             this.session = this.queueConnection.createQueueSession(false, Session.DUPS_OK_ACKNOWLEDGE);
             Queue queue = this.session.createQueue(queueName());
