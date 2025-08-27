@@ -1,6 +1,7 @@
 package dk.northtech.dassco_specify_adapter.configuration;
 
 import dk.northtech.dassco_specify_adapter.webapi.AssetFiles;
+import dk.northtech.dassco_specify_adapter.webapi.Logs;
 import dk.northtech.dassco_specify_adapter.webapi.AssetServerApi;
 import dk.northtech.dassco_specify_adapter.webapi.OpenAPI;
 import dk.northtech.dassco_specify_adapter.webapi.exceptionmappers.DasscoIllegalActionExceptionMapper;
@@ -18,6 +19,7 @@ public class JerseyApplicationConfig extends ResourceConfig {
         register(RolesAllowedDynamicFeature.class);
         register(DasscoIllegalActionExceptionMapper.class);
         register(AssetFiles.class);
+        register(Logs.class);
         register(OpenAPI.class);
         register(AssetServerApi.class);
     }

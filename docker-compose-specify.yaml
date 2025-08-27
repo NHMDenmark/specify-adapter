@@ -1,0 +1,168 @@
+# This is a Development Docker Composition of Specify 7
+# It has nice features like hot reloading and debugging support
+# However, it is not suited for production use due to memory leaks and security
+# issues
+# Though, you can use it for evaluation of Specify 7
+#
+# Full Documentation for the Development Docker Composition:
+# https://github.com/specify/specify7/wiki/Docker-Workflow-for-Development
+#
+# Members of Specify Collections Consortium get access to production-ready
+# Docker compositions. Please contact us at support@specifysoftware.org
+# if you would like to get access
+#
+
+services:
+  mariadb:
+    container_name: mariadb
+    image: mariadb:10.11
+    volumes:
+      - "database:/var/lib/mysql" # the data directory for mariadb
+      - "./seed-database:/docker-entrypoint-initdb.d"
+    ports:
+      - "127.0.0.1:3306:3306" # map host port 3306 to container port 3306
+    command: --max_allowed_packet=1073741824
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${DATABASE_NAME}
+      - MYSQL_USER=${MASTER_NAME}
+      - MYSQL_PASSWORD=${MASTER_PASSWORD}
+
+  specify7:
+    image: specifyconsortium/specify7-service:latest
+    init: false
+    volumes:
+      - "./config:/opt/Specify/config:ro" # provides Specify 6 files to Specify 7 and the web server
+      - "static-files:/volumes/static-files" # provides Specify 7 static files to the web server
+      - "./specifyweb:/opt/specify7/specifyweb"
+      - "webpack-output:/opt/specify7/specifyweb/frontend/static/js:ro" # mount webpack output as read-only
+    environment:
+      - DATABASE_HOST=mariadb
+      - DATABASE_PORT=3306
+      - DATABASE_NAME=${DATABASE_NAME}
+      - MASTER_NAME=${MASTER_NAME}
+      - MASTER_PASSWORD=${MASTER_PASSWORD}
+      - SECRET_KEY=askdbajsndbaksndbaksnbd
+      - ASSET_SERVER_URL=http://host.docker.internal/web_asset_store.xml
+      - ASSET_SERVER_KEY=test_attachment_key
+      - CELERY_BROKER_URL=redis://redis/0
+      - CELERY_RESULT_BACKEND=redis://redis/1
+      - REPORT_RUNNER_HOST=report-runner
+      - REPORT_RUNNER_PORT=8080
+      - LOG_LEVEL=WARNING
+      - SP7_DEBUG=true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  webpack:
+    container_name: webpack
+    build:
+      context: ./.
+      target: build-frontend
+    command: npx webpack -w --mode development --color
+    restart: unless-stopped
+    volumes:
+      - "webpack-output:/home/node/dist"
+      - "./specifyweb/frontend/js_src/lib:/home/node/lib:ro"
+      - "./specifyweb/frontend/js_src/css:/home/node/css:ro"
+
+  specify7-worker:
+    container_name: worker
+    build:
+      context: ./.
+      target: run-development
+    command: bash -c "ve/bin/celery -A specifyweb worker -l INFO --concurrency=1 -Q $DATABASE_NAME"
+    init: true
+    volumes:
+      - "./config:/opt/Specify/config:ro"
+      - "static-files:/volumes/static-files"
+      - "./specifyweb:/opt/specify7/specifyweb"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file: .env
+
+  redis:
+    container_name: redis
+    image: redis
+
+  nginx:
+    container_name: nginx
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - "static-files:/volumes/static-files:ro"
+      - "./config:/volumes/specify-config:ro"
+      - "webpack-output:/volumes/webpack-output:ro"
+      - "./nginx.conf:/etc/nginx/conf.d/default.conf:ro"
+
+  report-runner:
+    container_name: report-runner
+    image: specifyconsortium/report-runner
+
+  jaeger:
+    extends:
+      file: ./docker-compose-jaeger.yaml
+      service: jaeger
+
+  rabbitmq:
+    extends:
+      file: ./docker-compose-rabbitmq.yaml
+      service: rabbitmq
+
+  database:
+    extends:
+      file: ./docker-compose-postgres.yaml
+      service: database
+
+  keycloak:
+    extends:
+      file: ./docker-compose-keycloak.yaml
+      service: keycloak
+
+  app:
+    extends:
+      file: ./docker-compose-app.yaml
+      service: app
+    depends_on:
+      - rabbitmq
+      - database
+      - keycloak
+
+  asset-server:
+    image: nhmdenmark/specify-adapter:1.0.6
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/actuator/health || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      app:
+        condition: service_healthy
+    #      - rabbitmq
+    #      - keycloak
+    #      - database
+    ports:
+      - "8080:80"
+    volumes:
+      - "attachments:/home/specify/attachments"
+    environment:
+      SERVER_PORT: 80
+      AMQP_HOST_NAME: rabbitmq
+      AMQP_SECURE: "false"
+      KEYCLOAK_REALM: dassco
+      KEYCLOAK_AUTH_SERVER_URL: http://keycloak:8080/keycloak/
+      KEYCLOAK_SERVICE_USER_CLIENT_ID: rabbitmq-service-user
+      KEYCLOAK_SERVICE_USER_CLIENT_SECRET: kbOFBXI9tANgKUq8vXHLhT6YhbivgXxn
+      FILE_PROXY_ROOT_URL: http://app:8080
+      TOKEN_TIME_TOLERANCE_SECONDS: 10000
+      SPECIFY_URL: http://specify7:8000
+
+
+volumes:
+  #  asset-service-log-volume:
+  attachments: # the asset-servers attachment files
+  database: # the data directory for mariadb
+  static-files: # provides Specify 7 static files to the web server
+  webpack-output:

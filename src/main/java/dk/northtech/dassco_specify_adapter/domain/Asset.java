@@ -25,6 +25,8 @@ public class Asset {
     public Instant date_asset_taken;
     public Instant date_asset_deleted;
     public Instant date_audited;
+    public Instant date_pushed_to_specify;
+
     public String audited_by;
     public Instant date_asset_finalised;
     //References
