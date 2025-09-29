@@ -6,7 +6,7 @@ services:
       - 8080:8080
     environment:
       KEYCLOAK_REALM: dassco
-      KEYCLOAK_AUTH_SERVER_URL: http://localhost:8083/
+      KEYCLOAK_AUTH_SERVER_URL: http://localhost:8083/keycloak
       KEYCLOAK_RESOURCE: dassco-asset-service
       FILE_PROXY_ROOT_URL: http://localhost:8080/
       ACKNOWLEDGE_QUEUE: acknowledge-queue
