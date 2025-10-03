@@ -8,7 +8,7 @@ public record Acknowledge(
         AcknowledgeStatus status,
         String message,
         Instant date,
-        List<Specimen> specimensWithSpecifyIds) {
+        List<AssetSpecimen> specimensWithSpecifyIds) {
 
 
     @Override

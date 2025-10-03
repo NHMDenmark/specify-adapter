@@ -55,7 +55,7 @@ public class SpecifyEndpointService {
         this.keycloakService = keycloakService;
     }
 
-    public List<Specimen> pushImageToSpecify(CollectionObjectAttachment collectionObjectAttachment, Asset arsAsset, boolean deleteAttachment) {
+    public List<AssetSpecimen> pushImageToSpecify(CollectionObjectAttachment collectionObjectAttachment, Asset arsAsset, boolean deleteAttachment) {
 
         // 2: Log In to Specify:
         LoginInfo loginInfo = login();
@@ -83,20 +83,20 @@ public class SpecifyEndpointService {
         CollectionObjectAttachment attachmentToUpdate = collectionObjectAttachment;
 
 
-        List<Specimen> specimenWithIds = new ArrayList<>();
-        for (Specimen specimen : arsAsset.specimens) {
-            logger.info("Updating specimen: " + specimen
+        List<AssetSpecimen> specimenWithIds = new ArrayList<>();
+        for (AssetSpecimen assetSpecimen : arsAsset.asset_specimen) {
+            logger.info("Updating specimen: " + assetSpecimen
             );
             CollectionObjectAttachment collectionObjectAttachmentWithIds = null;
             //Check if attachment has been deleted outside of ars
             // 5: Get Collection Object (if it exists!):
-            CollectionObject collectionObject = getCollectionObject(specifyLogin, specimen.barcode());
-            if (specimen.specify_collection_object_attachment_id() != null && (arsAsset.date_asset_deleted != null || specimen.asset_detached())) {
+            CollectionObject collectionObject = getCollectionObject(specifyLogin, assetSpecimen.specimen.barcode());
+            if (assetSpecimen.specify_collection_object_attachment_id != null && (arsAsset.date_asset_deleted != null || assetSpecimen.asset_detached)) {
                 // tombstone
                 logger.info("In tombstone");
 
                 for (CollectionObjectAttachment coath : collectionObject.collectionobjectattachments) {
-                    if (coath.id.equals(specimen.specify_collection_object_attachment_id())) {
+                    if (coath.id.equals(assetSpecimen.specify_collection_object_attachment_id)) {
                         coath.collectionmemberid = collectionObject.collectionmemberid;
                         coath.collectionobject = "/api/specify/collectionobject/" + collectionObject.id;
 //                    attachmentToUpdate.version = attachmentToUpdate.version == null ? 1 : attachmentToUpdate.version;
@@ -108,16 +108,19 @@ public class SpecifyEndpointService {
                         coath.attachment.attachmentlocation = tombstoneParams.attachmentLocation;
                         logger.info("Tombstoning collectionObjectAttachment: {}", coath.toString());
                         putCollectionObjectAttachment(coath, specifyLogin);
-                        specimenWithIds.add(new Specimen(specimen.institution(), specimen.collection(), specimen.barcode(), specimen.specimen_pid(), specimen.preparation_types(), specimen.asset_preparation_type(), specimen.specimen_id(), specimen.collection_id(), null, specimen.asset_detached()));
+                        AssetSpecimen updated = new AssetSpecimen(assetSpecimen.asset_detached, null, assetSpecimen.asset_preparation_type, assetSpecimen.specimen_pid, assetSpecimen.asset_guid);
+                        updated.specimen = assetSpecimen.specimen;
+
+                        specimenWithIds.add(updated);
                     }
                 }
 
-            } else if (specimen.specify_collection_object_attachment_id() != null) {
+            } else if (assetSpecimen.specify_collection_object_attachment_id != null) {
                 // update
                 logger.info("In update attachment");
 
                 for (CollectionObjectAttachment coath : collectionObject.collectionobjectattachments) {
-                    if (coath.id.equals(specimen.specify_collection_object_attachment_id())) {
+                    if (coath.id.equals(assetSpecimen.specify_collection_object_attachment_id)) {
                         logger.info("found attachment to update");
                         coath.collectionmemberid = collectionObject.collectionmemberid;
                         coath.collectionobject = "/api/specify/collectionobject/" + collectionObject.id;
@@ -131,10 +134,12 @@ public class SpecifyEndpointService {
                         coath.attachment.attachmentlocation = uploadParams.attachmentLocation;
                         logger.info("Updating collectionObjectAttachment: {}", collectionObjectAttachment.toString());
                         CollectionObjectAttachment coaWithId = putCollectionObjectAttachment(coath, specifyLogin);
-                        specimenWithIds.add(new Specimen(specimen.institution(), specimen.collection(), specimen.barcode(), specimen.specimen_pid(), specimen.preparation_types(), specimen.asset_preparation_type(), specimen.specimen_id(), specimen.collection_id(), coaWithId.id, specimen.asset_detached()));
+                        AssetSpecimen updated = new AssetSpecimen(assetSpecimen.asset_detached, coaWithId.id, assetSpecimen.asset_preparation_type, assetSpecimen.specimen_pid, assetSpecimen.asset_guid);
+                        updated.specimen = assetSpecimen.specimen;
+                        specimenWithIds.add(updated);
                     }
                 }
-            } else if (arsAsset.date_asset_deleted == null && !specimen.asset_detached()) {
+            } else if (arsAsset.date_asset_deleted == null && !assetSpecimen.asset_detached) {
                 // create
                 logger.info("Creating new attachment in specify");
                 attachmentToUpdate.collectionmemberid = collectionObject.collectionmemberid;
@@ -147,7 +152,9 @@ public class SpecifyEndpointService {
                 }
                 attachmentToUpdate.attachment.attachmentlocation = uploadParams.attachmentLocation;
                 CollectionObjectAttachment coaWithId = postCollectionObjectAttachment(attachmentToUpdate, specifyLogin);
-                specimenWithIds.add(new Specimen(specimen.institution(), specimen.collection(), specimen.barcode(), specimen.specimen_pid(), specimen.preparation_types(), specimen.asset_preparation_type(), specimen.specimen_id(), specimen.collection_id(), coaWithId.id, specimen.asset_detached()));
+                AssetSpecimen newAssetSpecimen = new AssetSpecimen(assetSpecimen.asset_detached, coaWithId.id, assetSpecimen.asset_preparation_type, assetSpecimen.specimen_pid, assetSpecimen.asset_guid);
+                newAssetSpecimen.specimen = assetSpecimen.specimen;
+                specimenWithIds.add(newAssetSpecimen);
             }
 
             collectionObjectAttachmentWithIds = null;

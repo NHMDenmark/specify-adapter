@@ -70,7 +70,9 @@ public class MappingServiceTest {
 
     public static Asset getTestAsset() {
         Asset asset = new Asset();
-        asset.specimens = Arrays.asList(new Specimen("barcode", "specimen_pid", new HashSet<>(Arrays.asList("slide")),"slide"));
+        Specimen specimen = new Specimen("barcode", "specimen_pid", new HashSet<>(Arrays.asList("slide")));
+        asset.asset_specimen = Arrays.asList(new AssetSpecimen(false, null, "slide" , null, "specimen_pid", asset.asset_guid, null));
+        asset.asset_specimen.get(0).specimen = specimen;
         asset.asset_locked = false;
         asset.status = "BEING_PROCESSED";
         asset.digitiser = "Karl-Børge";

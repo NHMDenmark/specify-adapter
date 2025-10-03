@@ -9,7 +9,6 @@ public class Asset {
     public String asset_guid;
     public String status;
     public boolean multi_specimen;
-    public List<Specimen> specimens = new ArrayList<>();
     public List<String> funding = new ArrayList<>();
     public String asset_subject;
     public String payload_type;
@@ -71,11 +70,11 @@ public class Asset {
     public String metadata_created_by;
 //    public List<String> file_formats;
     public String updating_pipeline;
-
+    public List<Role> role_restrictions = new ArrayList<>();
     public String getAsset_guid() {
         return asset_guid;
     }
-
+    public List<AssetSpecimen> asset_specimen = new ArrayList<>();
 
     @Override
     public String toString() {
@@ -84,7 +83,6 @@ public class Asset {
                ", asset_guid='" + asset_guid + '\'' +
                ", status='" + status + '\'' +
                ", multi_specimen=" + multi_specimen +
-               ", specimens=" + specimens +
                ", funding=" + funding +
                ", subject='" + asset_subject + '\'' +
                ", payload_type='" + payload_type + '\'' +
