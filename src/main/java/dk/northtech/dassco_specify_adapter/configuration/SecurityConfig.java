@@ -13,6 +13,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
@@ -78,7 +79,19 @@ public class SecurityConfig {
   CorsConfigurationSource corsConfigurationSource() {
     UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
     source.registerCorsConfiguration("/**", this.corsHeaders.getCorsConfiguration());
-    return source;
+
+    UrlBasedCorsConfigurationSource fileUploadSource = new UrlBasedCorsConfigurationSource();
+    CorsConfiguration openCors = new CorsConfiguration();
+    openCors.setAllowedOrigins(List.of("*"));
+    openCors.setAllowedMethods(List.of("POST", "OPTIONS"));
+    fileUploadSource.registerCorsConfiguration("/fileupload", openCors);
+
+    return request -> {
+      if ("/fileupload".equals(request.getRequestURI())) {
+        return fileUploadSource.getCorsConfiguration(request);
+      }
+      return source.getCorsConfiguration(request); // apply to everything else
+    };
   }
 
   @Bean("no-auth")

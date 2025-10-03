@@ -10,25 +10,35 @@ import dk.northtech.dassco_specify_adapter.domain.SpecifyAdapterException;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Supplier;
 
 @Service
 public class AssetFileService {
 
     FileProxyProperties fileProxyProperties;
+    KeycloakService keycloakService;
     private static final Logger logger = LoggerFactory.getLogger(AssetFileService.class);
 
+    @Value("${asset-service.institution}")
+    private String institution;
+
     @Inject
-    public AssetFileService(FileProxyProperties fileProxyProperties) {
+    public AssetFileService(FileProxyProperties fileProxyProperties, KeycloakService keycloakService) {
         this.fileProxyProperties = fileProxyProperties;
+        this.keycloakService = keycloakService;
     }
 
     public List<String> getAssetFiles(String assetGuid, String token) {
@@ -101,5 +111,145 @@ public class AssetFileService {
 //            } catch (Exception e){
 //                throw new RuntimeException("There was an error with the API call to file_proxy.", e);
 //            }
+    }
+
+    public String pathToUrlPath(String type, String collection, String filename, String pathPostFix, Integer scale){
+        return
+                URLEncoder.encode(pathPostFix, StandardCharsets.UTF_8) +
+                "/" + URLEncoder.encode(collection, StandardCharsets.UTF_8) +
+                "/" + URLEncoder.encode((Objects.equals(type, "T") ? "thumbnails" : "originals"), StandardCharsets.UTF_8) +
+                "/" + URLEncoder.encode((Objects.equals(type, "T") ? filename.replace(".", "_%s.".formatted(scale)) : filename), StandardCharsets.UTF_8);
+    }
+
+    public int postFileToParkedFiles(InputStream file, String type, String collection, String filename, String pathPostFix){
+        Supplier<InputStream> streamSupplier = () -> file;
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(
+                        URI.create(
+                                fileProxyProperties.rootUrl()
+                                        + "/file_proxy/api/assetfiles/parkedfiles/"
+                                        + URLEncoder.encode(pathPostFix, StandardCharsets.UTF_8)
+                                        + "/" + URLEncoder.encode(collection, StandardCharsets.UTF_8)
+                                        + "/" + URLEncoder.encode(type, StandardCharsets.UTF_8)
+                                        + "/" + URLEncoder.encode(filename, StandardCharsets.UTF_8)
+                        )
+                )
+                .header("Authorization", "Bearer " + this.keycloakService.getUserServiceToken())
+                .header("Content-Type", "application/octet-stream")
+                .POST(HttpRequest.BodyPublishers.ofInputStream(streamSupplier))
+                .build();
+
+        HttpClient httpClient = HttpClient.newHttpClient();
+        HttpResponse<String> response;
+        try {
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException e) {
+            logger.error(e.getMessage(), e);
+            throw new SpecifyAdapterException("Failed to upload Parked file to file proxy ", AcknowledgeStatus.PARKED_FILE_UPLOAD_ERROR);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        return response.statusCode();
+    }
+
+    public HttpResponse<InputStream> readFileFromParkedFiles(String coll, String type, String filename, String pathPostFix, Integer scale){
+        String updatedFileName =  Objects.equals(type, "T") ? filename.replace(".", "_%s.".formatted(scale)) : filename;
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(fileProxyProperties.rootUrl()
+                        + "/file_proxy/api/assetfiles/parkedfiles"
+                        + "?institution=" + URLEncoder.encode(this.institution, StandardCharsets.UTF_8)
+                        + "&pathPostFix=" + URLEncoder.encode(pathPostFix, StandardCharsets.UTF_8)
+                        + "&collection=" + URLEncoder.encode(coll, StandardCharsets.UTF_8)
+                        + "&type=" + URLEncoder.encode(Objects.equals(type, "T") ? "thumbnails" : "originals", StandardCharsets.UTF_8)
+                        + "&filename=" + URLEncoder.encode(updatedFileName, StandardCharsets.UTF_8)
+                        + (scale != null ? "&scale=" + scale : "")
+                ))
+                .header("Authorization", "Bearer " + this.keycloakService.getUserServiceToken())
+                .GET()
+                .build();
+
+        HttpClient httpClient = HttpClient.newHttpClient();
+        HttpResponse<InputStream> response;
+        try {
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+        } catch (IOException e) {
+            logger.error(e.getMessage(), e);
+            throw new SpecifyAdapterException("Failed to fetch Parked file from file proxy ", AcknowledgeStatus.PARKED_FILE_DOWNLOAD_ERROR);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        return response;
+    }
+
+    public HttpResponse<String> readFilePathFromParkedFiles(String coll, String type, String filename, String pathPostFix, Integer scale){
+        String updatedFileName =  Objects.equals(type, "T") ? filename.replace(".", "_%s.".formatted(scale)) : filename;
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(fileProxyProperties.rootUrl()
+                        + "/file_proxy/api/assetfiles/parkedfiles/filepath"
+                        + "?institution=" + URLEncoder.encode(this.institution, StandardCharsets.UTF_8)
+                        + "&pathPostFix=" + URLEncoder.encode(pathPostFix, StandardCharsets.UTF_8)
+                        + "&collection=" + URLEncoder.encode(coll, StandardCharsets.UTF_8)
+                        + "&type=" + URLEncoder.encode(Objects.equals(type, "T") ? "thumbnails" : "originals", StandardCharsets.UTF_8)
+                        + "&filename=" + URLEncoder.encode(updatedFileName, StandardCharsets.UTF_8)
+                        + (scale != null ? "&scale=" + scale : "")
+                ))
+                .header("Authorization", "Bearer " + this.keycloakService.getUserServiceToken())
+                .GET()
+                .build();
+
+        HttpClient httpClient = HttpClient.newHttpClient();
+        HttpResponse<String> response;
+        try {
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException e) {
+            logger.error(e.getMessage(), e);
+            throw new SpecifyAdapterException("Failed to fetch Parked file path from file proxy ", AcknowledgeStatus.PARKED_FILE_PATH_ERROR);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        return response;
+    }
+
+    public int deleteFileFromParkedFiles(String coll, String filename, String pathPostFix){
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(fileProxyProperties.rootUrl()
+                        + "/file_proxy/api/assetfiles/parkedfiles/"
+                        + URLEncoder.encode(pathPostFix, StandardCharsets.UTF_8) + "/"
+                        + URLEncoder.encode(coll, StandardCharsets.UTF_8) + "/"
+                        + URLEncoder.encode("originals", StandardCharsets.UTF_8) + "/"
+                        + URLEncoder.encode(filename, StandardCharsets.UTF_8)
+                ))
+                .header("Authorization", "Bearer " + this.keycloakService.getUserServiceToken())
+                .DELETE()
+                .build();
+        HttpClient httpClient = HttpClient.newHttpClient();
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            return response.statusCode();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+    public String normalizeMetadataDirectoryName(String name) {
+        if (name.equalsIgnoreCase("Exif SubIFD")) return "EXIF";
+        if (name.equalsIgnoreCase("Exif IFD0")) return "Image";
+        if (name.toUpperCase().startsWith("GPS")) return "GPS";
+        return name;
+    }
+
+    public String normalizeMetadataTagName(String name) {
+        String[] parts = name.replace("/", " ").split("\\s+");
+        StringBuilder sb = new StringBuilder();
+        for (String part : parts) {
+            if (!part.isEmpty()) {
+                sb.append(part.substring(0, 1).toUpperCase());
+                if (part.length() > 1) sb.append(part.substring(1));
+            }
+        }
+        return sb.toString();
     }
 }
