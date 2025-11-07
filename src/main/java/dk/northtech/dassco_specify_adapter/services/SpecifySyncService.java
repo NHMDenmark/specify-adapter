@@ -36,8 +36,8 @@ public class SpecifySyncService {
         ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule()).configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         try {
             ARSUpdate arsUpdate = mapper.readValue(arsUpdateJson, ARSUpdate.class);
-            CollectionObjectAttachment attachment = mappingService.getAttachment(arsUpdate.asset);
             try {
+                CollectionObjectAttachment attachment = mappingService.getAttachment(arsUpdate.asset);
                 List<AssetSpecimen> specimen = specifyEndpointService.pushImageToSpecify(attachment, arsUpdate.asset, arsUpdate.deleteAttachment);
 
                 queueBroadcaster.sendMessage(new Acknowledge(arsUpdate.asset.asset_guid, AcknowledgeStatus.SUCCESS, null, Instant.now(), specimen));
