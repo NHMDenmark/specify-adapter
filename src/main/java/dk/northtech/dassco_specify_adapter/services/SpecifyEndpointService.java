@@ -492,7 +492,7 @@ public class SpecifyEndpointService {
                 }
             });
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new RuntimeException(e);
         }
     }
 
