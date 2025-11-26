@@ -51,7 +51,8 @@ public class MappingService {
 //        collectionObjectAttachment.ars_institution = asset.institution;
 //        collectionObjectAttachment.ars_assetguid = asset.asset_guid;
         if(asset.asset_specimen.isEmpty()) {
-            throw new SpecifyAdapterException("No specimens found for asset: " + asset, AcknowledgeStatus.MAPPING_ERROR);
+            logger.warn("No specimens found for asset " + asset);
+            throw new SpecifyAdapterException("No specimens found for asset ", AcknowledgeStatus.MAPPING_ERROR);
         }
 //        collectionObjectAttachment.ars_barcode = asset.specimens.getFirst().barcode();
         Attachment attachment = new Attachment();
