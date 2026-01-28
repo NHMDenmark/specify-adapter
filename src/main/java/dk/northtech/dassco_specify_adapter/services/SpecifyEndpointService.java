@@ -9,6 +9,7 @@ import dk.northtech.dassco_specify_adapter.assets.SpecifyProperties;
 import dk.northtech.dassco_specify_adapter.domain.*;
 import dk.northtech.dassco_specify_adapter.domain.specify.*;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.core.SecurityContext;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -30,6 +31,7 @@ import java.net.*;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.security.Principal;
 import java.time.LocalDate;
 import java.util.*;
 
@@ -546,6 +548,12 @@ public class SpecifyEndpointService {
         } catch (IOException | InterruptedException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public List<CollectionObject> searchSpecify() {
+        List<CollectionObject> collectionObjects = new ArrayList<>();
+
+        return collectionObjects;
     }
 
 }
