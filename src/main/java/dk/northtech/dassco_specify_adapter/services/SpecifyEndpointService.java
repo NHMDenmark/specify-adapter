@@ -56,28 +56,20 @@ public class SpecifyEndpointService {
 
         this.keycloakService = keycloakService;
     }
-
-    public List<AssetSpecimen> pushImageToSpecify(CollectionObjectAttachment collectionObjectAttachment, Asset arsAsset, boolean deleteAttachment) {
-
-        // 2: Log In to Specify:
+    public SpecifyCollectionLogin loginToCollection(String collection) {
         LoginInfo loginInfo = login();
-//        String csrfToken = loginMap.get("csrftoken").toString();
-        // 3: Get Asset Institution and Collection Mapping:
-        String collection = arsAsset.collection;
-        //        Object collectionObj = loginMap.get("collections");
-
         int specifyCollectionId = 0;
-//        if (collectionObj instanceof JSONObject collections) {
         if (loginInfo.collections.containsKey(collection)) {
             specifyCollectionId = loginInfo.collections.get(collection);
         } else {
             throw new SpecifyAdapterException("No collection was found in specify", AcknowledgeStatus.MAPPING_ERROR);
         }
-//        }
         logger.info("Logging into collection {}", collection);
         logger.info("Specify collection id {}", specifyCollectionId);
-        // 4: Login to Collection:
-        SpecifyCollectionLogin specifyLogin = loginToCollection(specifyCollectionId, loginInfo.csrftoken);
+        return loginToCollection(specifyCollectionId, loginInfo.csrftoken);
+    }
+    public List<AssetSpecimen> pushImageToSpecify(CollectionObjectAttachment collectionObjectAttachment, Asset arsAsset, boolean deleteAttachment) {
+        SpecifyCollectionLogin specifyLogin = loginToCollection(arsAsset.collection);
 
         UploadParams uploadParams = null;
         UploadParams tombstoneParams = null;
