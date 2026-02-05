@@ -1,9 +1,6 @@
 package dk.northtech.dassco_specify_adapter.configuration;
 
-import dk.northtech.dassco_specify_adapter.webapi.AssetFiles;
-import dk.northtech.dassco_specify_adapter.webapi.Logs;
-import dk.northtech.dassco_specify_adapter.webapi.AssetServerApi;
-import dk.northtech.dassco_specify_adapter.webapi.OpenAPI;
+import dk.northtech.dassco_specify_adapter.webapi.*;
 import dk.northtech.dassco_specify_adapter.webapi.exceptionmappers.DasscoIllegalActionExceptionMapper;
 import jakarta.ws.rs.ApplicationPath;
 import org.glassfish.jersey.media.multipart.MultiPartFeature;
@@ -22,5 +19,6 @@ public class JerseyApplicationConfig extends ResourceConfig {
         register(Logs.class);
         register(OpenAPI.class);
         register(AssetServerApi.class);
+        register(Sync.class);
     }
 }
