@@ -22,6 +22,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class SpecifyQueryService {
@@ -70,6 +71,13 @@ public class SpecifyQueryService {
             if(x.size() == 2) {
                 logger.info("found collectionObject with id {}", x.get(0)  );
                 logger.info("found collectionObject with last modified {}", x.get(1)  );
+                Optional<CollectionObject> collectionObjectOpt = getCollectionObject(specifyLogin, (Integer) x.get(0));
+                if(collectionObjectOpt.isPresent()) {
+                    CollectionObject collectionObject = collectionObjectOpt.get();
+                    collectionObject.collectionobjectattachments.forEach(x1 -> {
+
+                    });
+                }
             }
         });
     }
@@ -137,12 +145,12 @@ public class SpecifyQueryService {
         fromSpecify.credit = withARSValues.credit;
     }
 
-
-    public CollectionObject getCollectionObject(SpecifyCollectionLogin login, String barcode) {
+//    https://specify-test3.science.ku.dk/api/specify/collectionobject/6555171/
+    public Optional<CollectionObject> getCollectionObject(SpecifyCollectionLogin login, int collectionObjectId) {
         HttpClient httpClient = HttpClient.newBuilder()
                 .build();
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(this.specifyProperties.rootUrl() + "/api/specify/collectionobject/?catalognumber=" + barcode))
+                .uri(URI.create(this.specifyProperties.rootUrl() + "/api/specify/collectionobject/" + collectionObjectId + "/"))
                 .header("Cookie", "collection=" + login.collection() + ";csrftoken=" + login.csrftoken() + ";sessionid=" + login.sessionid())
                 .header("X-CSRFToken", login.csrftoken())
                 .GET()
@@ -151,18 +159,18 @@ public class SpecifyQueryService {
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
-                CollectionObjectSearchResult collectionObjectSearchResult = mapper.readValue(response.body(), CollectionObjectSearchResult.class);
-                if (!collectionObjectSearchResult.objects.isEmpty()) {
-                    return collectionObjectSearchResult.objects.getFirst();
-                } else {
-                    throw new SpecifyAdapterException("The Specimen does not exist in Specify. Please create a Collection Object for this Specimen.", AcknowledgeStatus.SPECIMEN_NOT_FOUND_ERROR);
-                }
+                CollectionObject collectionObject = mapper.readValue(response.body(), CollectionObject.class);
+                return Optional.of(collectionObject);
+            } else if(response.statusCode() == 404) {
+                logger.info("CollectionObject with id {} not found", collectionObjectId);
             } else {
+                logger.error("There was an error getting collectionObject. Status: " + response.statusCode());
                 throw new RuntimeException("Error: " + response.statusCode());
             }
         } catch (IOException | InterruptedException e) {
             throw new RuntimeException(e);
         }
+        return Optional.empty();
     }
 
     public CollectionObjectAttachment postCollectionObjectAttachment(CollectionObjectAttachment collectionObjectAttachment
