@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.17.xsd">
+
+    <changeSet id="3.11.0:ADD_SPECIFY_SYNC_BATCH_STATUS" author="Thomas Skov Bornerup">
+        <createTable tableName="specify_ars_sync_batch_status">
+            <column name="specify_ars_sync_batch_status" type="text">
+                <constraints
+                        nullable="false"
+                        primaryKey="true"
+                        primaryKeyName="pk_specify_ars_sync_batch_status"
+                />
+            </column>
+        </createTable>
+        <sql>
+            INSERT INTO specify_ars_sync_batch_status(specify_ars_sync_batch_status)
+            VALUES ('PARTIAL_SUCCESS')
+                 , ('FAILED')
+                 , ('SUCCESSFUL')
+                 , ('STARTED')
+        </sql>
+    </changeSet>
+    <changeSet id="3.11.0:CREATE_SYNC_DIRECTION" author="Thomas Skov Bornerup">
+        <createTable tableName="SYNC_DIRECTION">
+            <column name="sync_direction" type="text">
+                <constraints nullable="false"
+                             primaryKey="true"
+                             primaryKeyName="pk_sync_direction"
+                />
+            </column>
+        </createTable>
+        <sql>
+            INSERT INTO sync_direction(sync_direction)
+            VALUES
+            ('ARS_TO_SPECIFY')
+                 , ('SPECIFY_TO_ARS')
+        </sql>
+    </changeSet>
+    <changeSet id="3.11.0:ADD_SPECIFY_SYNC_BATCH" author="Thomas Skov Bornerup">
+        <createTable tableName="specify_ars_sync_batch">
+            <column name="specify_ars_sync_batch_id" type="int" autoIncrement="true">
+                <constraints
+                        primaryKey="true"
+                        primaryKeyName="pk_specify_ars_sync_batch"
+                        nullable="false"/>
+            </column>
+            <column name="batch_timestamp" type="timestamp">
+                <constraints nullable="false"/>
+            </column>
+            <column name="specify_from_timestamp" type="timestamp">
+                <constraints nullable="false"/>
+            </column>
+            <column name="specify_to_timestamp" type="timestamp">
+                <constraints nullable="false"/>
+            </column>
+            <column name="status" type="text">
+                <constraints nullable="false"/>
+            </column>
+            <column name="additional_info" type="text">
+                <constraints nullable="true"/>
+            </column>
+        </createTable>
+    </changeSet>
+    <changeSet id="3.11.0:ADD_SPECIFY_SYNC_LOG" author="Thomas Skov Bornerup">
+        <createTable tableName="specify_sync_log">
+            <column name="specify_sync_log_id" type="bigint" autoIncrement="true">
+                <constraints
+                        primaryKey="true"
+                        primaryKeyName="pk_specify_sync_log"
+                        nullable="false"/>
+            </column>
+            <column name="specify_modified_date" type="timestamp"/>
+            <column name="status" type="text">
+                <constraints nullable="false"/>
+            </column>
+            <column name="specify_collection_object_attachment_id" type="int">
+                <constraints nullable="false"/>
+            </column>
+            <column name="additional_info" type="text">
+                <constraints nullable="true"/>
+            </column>
+            <column name="sync_attempt_update_timestamp" type="timestamp"/>
+            <column name="specify_ars_sync_batch_id" type="int">
+                <constraints nullable="true"/>
+            </column>
+            <column name="ars_asset_guid" type="text">
+                <constraints nullable="true"/>
+            </column>
+            <column name="sync_direction" type="text">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+    </changeSet>
+    <changeSet id="3.11.0:ADD_SPECIFY_SYNC_LOG_STATUS" author="Thomas Skov Bornerup">
+        <createTable tableName="specify_sync_log_status">
+            <column name="specify_sync_log_status" type="text">
+                <constraints
+                        nullable="false"
+                        primaryKey="true"
+                        primaryKeyName="pk_specify_sync_log_status"
+                />
+            </column>
+        </createTable>
+        <sql>
+            INSERT INTO specify_sync_log_status(specify_sync_log_status)
+            VALUES ('SKIPPED')
+                 , ('REVERTED')
+                 , ('SUCCEEDED')
+                 , ('FAILED')
+        </sql>
+    </changeSet>
+    <changeSet id="3.11.0:ADD_SPECIFY_ARS_SYNC_FKS" author="Thomas Skov Bornerup">
+        <addForeignKeyConstraint baseTableName="specify_sync_log"
+                                 baseColumnNames="specify_ars_sync_batch_id"
+                                 constraintName="fk_specify_sync_log__specify_ars_sync_batch"
+                                 referencedTableName="specify_ars_sync_batch"
+                                 referencedColumnNames="specify_ars_sync_batch_id"/>
+        <addForeignKeyConstraint baseTableName="specify_ars_sync_batch"
+                                 baseColumnNames="status"
+                                 constraintName="fk_specify_ars_sync_batch__specify_ars_sync_batch_status"
+                                 referencedTableName="specify_ars_sync_batch_status"
+                                 referencedColumnNames="specify_ars_sync_batch_status"/>
+        <addForeignKeyConstraint baseTableName="specify_sync_log"
+                                 baseColumnNames="sync_direction"
+                                 constraintName="specify_sync_log__sync_direction"
+                                 referencedTableName="sync_direction"
+                                 referencedColumnNames="sync_direction"/>
+        <addForeignKeyConstraint baseTableName="specify_sync_log" baseColumnNames="status"
+                                 constraintName="fk_specify_sync_log__specify_sync_log_status"
+                                 referencedTableName="specify_sync_log_status"
+                                 referencedColumnNames="specify_sync_log_status"/>
+
+    </changeSet>
+    <!--    <changeSet id="VERSION-3.11.0" author="MG" context="default">-->
+    <!--        <tagDatabase tag="VERSION-3.11.0"/>-->
+    <!--    </changeSet>-->
+
+</databaseChangeLog>
