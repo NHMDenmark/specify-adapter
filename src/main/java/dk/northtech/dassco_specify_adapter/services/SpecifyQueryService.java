@@ -9,6 +9,7 @@ import dk.northtech.dassco_specify_adapter.assets.SpecifyProperties;
 import dk.northtech.dassco_specify_adapter.domain.*;
 import dk.northtech.dassco_specify_adapter.domain.specify.*;
 import jakarta.inject.Inject;
+import jakarta.validation.constraints.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -42,7 +43,7 @@ public class SpecifyQueryService {
         this.specifyProperties = specifyProperties;
     }
 
-    public void findCollectionObjectsToSync() {
+    public List<CollectionObject> findCollectionObjectsToSync(@NotNull String fromTimestamp, String toTimestamp) {
 
         // 2: Log In to Specify:
         LoginInfo loginInfo = specifyEndpointService.login();
@@ -64,22 +65,18 @@ public class SpecifyQueryService {
         // 4: Login to Collection:
         SpecifyCollectionLogin specifyLogin = specifyEndpointService.loginToCollection(specifyCollectionId, loginInfo.csrftoken);
         String json = UPDATED_SINCE_QUERY;
-        String postbody = json.replace("<from_timestamp>", "2026-01-31");
-
+        String postbody = json.replace("<from_timestamp>", fromTimestamp).replace("<to_timestamp>", toTimestamp);
+        List<CollectionObject> foundCollectionObjects = new ArrayList<>();
         SpecifyQueryResult specifyQueryResult = querySpecify(postbody, specifyLogin);
         specifyQueryResult.results.forEach(x -> {
             if(x.size() == 2) {
                 logger.info("found collectionObject with id {}", x.get(0)  );
                 logger.info("found collectionObject with last modified {}", x.get(1)  );
                 Optional<CollectionObject> collectionObjectOpt = getCollectionObject(specifyLogin, (Integer) x.get(0));
-                if(collectionObjectOpt.isPresent()) {
-                    CollectionObject collectionObject = collectionObjectOpt.get();
-                    collectionObject.collectionobjectattachments.forEach(x1 -> {
-
-                    });
-                }
+                collectionObjectOpt.ifPresent(foundCollectionObjects::add);
             }
         });
+        return foundCollectionObjects;
     }
 
 
