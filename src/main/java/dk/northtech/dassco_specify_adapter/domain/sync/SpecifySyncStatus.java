@@ -5,5 +5,6 @@ public enum SpecifySyncStatus {
     , REVERTED
     , COMPLETED
     , FAILED
+    , STARTED
 
 }

@@ -1,16 +1,12 @@
 package dk.northtech.dassco_specify_adapter.domain;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.google.common.net.UrlEscapers;
-import dk.northtech.dassco_specify_adapter.assets.SpecifyProperties;
-import dk.northtech.dassco_specify_adapter.services.MappingServiceTest;
-import dk.northtech.dassco_specify_adapter.services.SpecifyEndpointService;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 
 class SpecifySyncServiceTest {
 //    @Test
@@ -27,10 +23,12 @@ class SpecifySyncServiceTest {
 //            fail(e);
 //        }
 //    }
+//    ZoneOffset.
     @Test
     public void test() {
-        String s = "http://test tst.dk/asdf asdf/asdf?lor t=lortiande n";
-        String escape = UrlEscapers.urlFragmentEscaper().escape(s);
-        System.out.println(escape);
+        DateTimeFormatter format = DateTimeFormatter.ISO_LOCAL_DATE_TIME.withZone(
+                ZoneId.of("Europe/Copenhagen")
+        );
+        System.out.println(format.format(Instant.now()));
     }
 }

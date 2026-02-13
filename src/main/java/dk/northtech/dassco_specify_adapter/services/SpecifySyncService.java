@@ -6,29 +6,47 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import dk.northtech.dassco_specify_adapter.AMQP.QueueBroadcaster;
 import dk.northtech.dassco_specify_adapter.domain.*;
+import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObject;
 import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObjectAttachment;
+import dk.northtech.dassco_specify_adapter.domain.sync.SpecifyArsSyncBatch;
+import dk.northtech.dassco_specify_adapter.domain.sync.SpecifySyncLogEntry;
+import dk.northtech.dassco_specify_adapter.repository.SpecifyArsSyncRepository;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.Response;
+import org.jdbi.v3.core.Jdbi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class SpecifySyncService {
     private static final Logger log = LoggerFactory.getLogger(SpecifySyncService.class);
-    private QueueBroadcaster queueBroadcaster;
-    private SpecifyEndpointService specifyEndpointService;
-    private MappingService mappingService;
+    private final QueueBroadcaster queueBroadcaster;
+    private final SpecifyEndpointService specifyEndpointService;
+    private final MappingService mappingService;
+    private final SpecifyQueryService specifyQueryService;
+    private final Jdbi jdbi;
+    private static final String DEFAULT_SYNC_FROM = "2026-01-01T00:00:00.639582";
+    private final DateTimeFormatter format = DateTimeFormatter.ISO_LOCAL_DATE_TIME
+            .withZone(
+            ZoneId.of("Europe/Copenhagen")
+    );
 
     @Inject
-    public SpecifySyncService(QueueBroadcaster queueBroadcaster, SpecifyEndpointService specifyEndpointService, MappingService mappingService) {
+    public SpecifySyncService(QueueBroadcaster queueBroadcaster, SpecifyEndpointService specifyEndpointService, MappingService mappingService, SpecifyQueryService specifyQueryService, Jdbi jdbi) {
         this.queueBroadcaster = queueBroadcaster;
         this.specifyEndpointService = specifyEndpointService;
         this.mappingService = mappingService;
+        this.specifyQueryService = specifyQueryService;
+        this.jdbi = jdbi;
     }
 
 
@@ -39,7 +57,7 @@ public class SpecifySyncService {
             try {
                 CollectionObjectAttachment attachment = mappingService.getAttachment(arsUpdate.asset);
                 List<AssetSpecimen> specimen = specifyEndpointService.pushImageToSpecify(attachment, arsUpdate.asset, arsUpdate.deleteAttachment);
-
+//                2026-02-03T05:09:29
                 queueBroadcaster.sendMessage(new Acknowledge(arsUpdate.asset.asset_guid, AcknowledgeStatus.SUCCESS, null, Instant.now(), specimen));
             } catch (SpecifyAdapterException spx) {
                 queueBroadcaster.sendMessage(new Acknowledge(arsUpdate.asset.asset_guid, spx.status(), spx.getMessage(), Instant.now(), null));
@@ -50,5 +68,54 @@ public class SpecifySyncService {
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public void specifyToArsSync() {
+        Optional<SpecifyArsSyncBatch> latestSuccessfulBatch = getLatestSuccessfulBatch();
+        String fromDate = DEFAULT_SYNC_FROM;
+        String toDate = format.format(Instant.now());
+
+        if (latestSuccessfulBatch.isPresent()) {
+            SpecifyArsSyncBatch batch = latestSuccessfulBatch.get();
+            fromDate = format.format(batch.specify_from_timestamp());
+        }
+        try {
+            List<CollectionObject> collectionObjectsToSync = specifyQueryService.findCollectionObjectsToSync(fromDate, toDate);
+        } catch (Exception e) {
+            jdbi.withHandle(handle -> {
+                SpecifyArsSyncRepository attach = handle.attach(SpecifyArsSyncRepository.class);
+                attach.createNewBatch(new SpecifyArsSyncBatch(null,Instant.now(),))
+            })
+            throw new RuntimeException(e);
+        }
+
+
+    }
+
+    public Optional<SpecifyArsSyncBatch> getLatestSuccessfulBatch() {
+        return jdbi.withHandle(h -> {
+            SpecifyArsSyncRepository repository = h.attach(SpecifyArsSyncRepository.class);
+            SpecifyArsSyncBatch latestNonFailed = repository.getLatestNonFailed();
+            if (latestNonFailed == null) {
+                return Optional.empty();
+            }
+            return Optional.of(latestNonFailed);
+        });
+    }
+
+    SpecifyArsSyncBatch startSyncBatch(SpecifyArsSyncBatch syncBatch) {
+        if (syncBatch.entries() == null || syncBatch.entries().isEmpty()) {
+            throw new RuntimeException("Sync batch must have entries");
+        }
+        List<SpecifySyncLogEntry> entries = new ArrayList<>();
+        return jdbi.inTransaction(h -> {
+            SpecifyArsSyncRepository repo = h.attach(SpecifyArsSyncRepository.class);
+            Integer newBatchId = repo.createNewBatch(syncBatch);
+            syncBatch.entries().forEach(entry -> {
+                Integer new_entry_id = repo.insertSyncLog(new SpecifySyncLogEntry(entry, newBatchId, null));
+                entries.add(new SpecifySyncLogEntry(entry, newBatchId, new_entry_id));
+            });
+            return new SpecifyArsSyncBatch(newBatchId, syncBatch.batch_timestamp(), syncBatch.specify_from_timestamp(), syncBatch.specify_to_timestamp(), syncBatch.status(), syncBatch.additional_info(), entries);
+        });
     }
 }

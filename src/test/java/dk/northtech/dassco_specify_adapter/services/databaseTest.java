@@ -1,7 +1,6 @@
 package dk.northtech.dassco_specify_adapter.services;
 
-import dk.northtech.dassco_specify_adapter.domain.sync.SpecifyArsSyncBatch;
-import dk.northtech.dassco_specify_adapter.domain.sync.SpecifyArsSyncBatchStatus;
+import dk.northtech.dassco_specify_adapter.domain.sync.*;
 import dk.northtech.dassco_specify_adapter.repository.SpecifyArsSyncRepository;
 import jakarta.inject.Inject;
 import liquibase.Contexts;
@@ -28,19 +27,20 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 import static com.google.common.truth.Truth.assertThat;
 
 @SpringBootTest
 @Testcontainers
 @DirtiesContext
-class HttpShareServiceTest {
+class databaseTest {
 
     @Inject
     LogService logService;
 
     @Inject Jdbi jdbi;
-    private static final Logger logger = LoggerFactory.getLogger(HttpShareServiceTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(databaseTest.class);
     private static Network network = Network.newNetwork();
     @Container
     static GenericContainer postgreSQL = new PostgreSQLContainer("postgres:16-alpine")
@@ -53,14 +53,7 @@ class HttpShareServiceTest {
 
 //
     static {
-            postgreSQL.start();
-//        String url =  "jdbc:postgresql://localhost:" + postgreSQL.getFirstMappedPort() + "/dassco_file_proxy";
-//        Properties props = new Properties();
-//        props.setProperty("user", "fred");
-//        props.setProperty("password", "secret");
-//        props.setProperty("ssl", "true");
-//        Connection conn = DriverManager.getConnection(url, props);
-
+        postgreSQL.start();
         String url =  "jdbc:postgresql://localhost:" + postgreSQL.getFirstMappedPort() + "/dassco_file_proxy?user=dassco_file_proxy&password=dassco_file_proxy";
         try (Connection conn = DriverManager.getConnection(url);) {
             Database database = DatabaseFactory.getInstance().findCorrectDatabaseImplementation(new JdbcConnection(conn));
@@ -85,11 +78,40 @@ class HttpShareServiceTest {
             attach.createNewBatch(succeeded);
             SpecifyArsSyncBatch latestNonFailed = attach.getLatestNonFailed();
             assertThat(latestNonFailed.additional_info()).isEqualTo(succeeded.additional_info());
-
+            assertThat(latestNonFailed.status()).isEqualTo(SpecifyArsSyncBatchStatus.SUCCESSFUL);
             return x;
         });
     }
+
     @Test
-    void contextLoads() {
+    void test2() {
+        jdbi.withHandle(x -> {
+            SpecifyArsSyncRepository repository = x.attach(SpecifyArsSyncRepository.class);
+            SpecifyArsSyncBatch succeeded = new SpecifyArsSyncBatch(null, Instant.now(), Instant.now().minus(48, ChronoUnit.HOURS), Instant.now().minus(24, ChronoUnit.HOURS), SpecifyArsSyncBatchStatus.SUCCESSFUL, "test2");
+            Integer id = repository.createNewBatch(succeeded);
+            SpecifySyncLogEntry test1 = new SpecifySyncLogEntry(null, null, SpecifySyncStatus.STARTED, 1234, "test1", null, id, null, SyncDirection.SPECIFY_TO_ARS);
+            SpecifySyncLogEntry test2 = new SpecifySyncLogEntry(null, null, SpecifySyncStatus.STARTED, 1235, "test2", null, id, null, SyncDirection.SPECIFY_TO_ARS);
+            repository.insertSyncLog(test1);
+            repository.insertSyncLog(test2);
+            List<SpecifySyncLogEntry> syncLog = repository.getSyncLog(id);
+            assertThat(syncLog.size()).isEqualTo(2);
+            return x;
+        });
+    }
+
+    @Test
+    void testUpdate() {
+        jdbi.withHandle(x -> {
+            SpecifyArsSyncRepository repository = x.attach(SpecifyArsSyncRepository.class);
+            SpecifyArsSyncBatch succeeded = new SpecifyArsSyncBatch(null, Instant.now(), Instant.now().minus(48, ChronoUnit.HOURS), Instant.now().minus(24, ChronoUnit.HOURS), SpecifyArsSyncBatchStatus.SUCCESSFUL, "test2");
+            Integer id = repository.createNewBatch(succeeded);
+            SpecifySyncLogEntry test1 = new SpecifySyncLogEntry(null, null, SpecifySyncStatus.STARTED, 1234, "test1", null, id, null, SyncDirection.SPECIFY_TO_ARS);
+            SpecifySyncLogEntry test2 = new SpecifySyncLogEntry(null, null, SpecifySyncStatus.STARTED, 1235, "testupdate", null, id, null, SyncDirection.SPECIFY_TO_ARS);
+            repository.insertSyncLog(test1);
+            Integer i = repository.insertSyncLog(test2);
+            List<SpecifySyncLogEntry> syncLog = repository.getSyncLog(id);
+            assertThat(syncLog.size()).isEqualTo(2);
+            return x;
+        });
     }
 }
