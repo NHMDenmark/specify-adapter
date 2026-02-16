@@ -9,10 +9,10 @@ import dk.northtech.dassco_specify_adapter.domain.*;
 import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObject;
 import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObjectAttachment;
 import dk.northtech.dassco_specify_adapter.domain.sync.SpecifyArsSyncBatch;
+import dk.northtech.dassco_specify_adapter.domain.sync.SpecifyArsSyncBatchStatus;
 import dk.northtech.dassco_specify_adapter.domain.sync.SpecifySyncLogEntry;
 import dk.northtech.dassco_specify_adapter.repository.SpecifyArsSyncRepository;
 import jakarta.inject.Inject;
-import jakarta.ws.rs.core.Response;
 import org.jdbi.v3.core.Jdbi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,7 +20,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,11 +33,10 @@ public class SpecifySyncService {
     private final MappingService mappingService;
     private final SpecifyQueryService specifyQueryService;
     private final Jdbi jdbi;
-    private static final String DEFAULT_SYNC_FROM = "2026-01-01T00:00:00.639582";
-    private final DateTimeFormatter format = DateTimeFormatter.ISO_LOCAL_DATE_TIME
-            .withZone(
-            ZoneId.of("Europe/Copenhagen")
-    );
+    // Specify timestamps is in the local timezone.
+    private final DateTimeFormatter specifyDateFormat = DateTimeFormatter.ISO_LOCAL_DATE_TIME
+            .withZone(ZoneId.of("Europe/Copenhagen"));
+    private static final Instant DEFAULT_SYNC_MILLIS = Instant.ofEpochMilli(1767272493000L);
 
     @Inject
     public SpecifySyncService(QueueBroadcaster queueBroadcaster, SpecifyEndpointService specifyEndpointService, MappingService mappingService, SpecifyQueryService specifyQueryService, Jdbi jdbi) {
@@ -72,20 +70,27 @@ public class SpecifySyncService {
 
     public void specifyToArsSync() {
         Optional<SpecifyArsSyncBatch> latestSuccessfulBatch = getLatestSuccessfulBatch();
-        String fromDate = DEFAULT_SYNC_FROM;
-        String toDate = format.format(Instant.now());
+        Instant fromInstant = null;
+        String specifyFromDate = null;
+        String specifyToDate = specifyDateFormat.format(Instant.now());
 
         if (latestSuccessfulBatch.isPresent()) {
             SpecifyArsSyncBatch batch = latestSuccessfulBatch.get();
-            fromDate = format.format(batch.specify_from_timestamp());
+            fromInstant = batch.specify_from_timestamp();
+        } else {
+            fromInstant = DEFAULT_SYNC_MILLIS;
         }
+        specifyFromDate = specifyDateFormat.format(fromInstant);
         try {
-            List<CollectionObject> collectionObjectsToSync = specifyQueryService.findCollectionObjectsToSync(fromDate, toDate);
+            List<CollectionObject> collectionObjectsToSync = specifyQueryService.findCollectionObjectsToSync(specifyFromDate, specifyToDate);
+
         } catch (Exception e) {
+            Instant finalFromInstant = fromInstant;
             jdbi.withHandle(handle -> {
                 SpecifyArsSyncRepository attach = handle.attach(SpecifyArsSyncRepository.class);
-                attach.createNewBatch(new SpecifyArsSyncBatch(null,Instant.now(),))
-            })
+                attach.createNewBatch(new SpecifyArsSyncBatch(null,Instant.now(), finalFromInstant, Instant.now(), SpecifyArsSyncBatchStatus.FAILED,e.getMessage()));
+                return handle;
+            });
             throw new RuntimeException(e);
         }
 
