@@ -7,7 +7,7 @@ import java.time.Instant;
 public record SpecifySyncLogEntry(Long specify_sync_log_id
         , Instant specify_modified_date
         , SpecifySyncStatus status
-        , Integer specify_collection_object_attachment_id
+        , Long specify_collection_object_attachment_id
         , String additional_info
         , Instant sync_attempt_update_timestamp
         , Integer specify_ars_sync_batch_id
@@ -16,7 +16,7 @@ public record SpecifySyncLogEntry(Long specify_sync_log_id
 ) {
 
     @JdbiConstructor
-    public SpecifySyncLogEntry(Long specify_sync_log_id, Instant specify_modified_date, SpecifySyncStatus status, Integer specify_collection_object_attachment_id, String additional_info, Instant sync_attempt_update_timestamp, Integer specify_ars_sync_batch_id, String ars_asset_guid, SyncDirection sync_direction) {
+    public SpecifySyncLogEntry(Long specify_sync_log_id, Instant specify_modified_date, SpecifySyncStatus status, Long specify_collection_object_attachment_id, String additional_info, Instant sync_attempt_update_timestamp, Integer specify_ars_sync_batch_id, String ars_asset_guid, SyncDirection sync_direction) {
         this.specify_sync_log_id = specify_sync_log_id;
         this.specify_modified_date = specify_modified_date;
         this.status = status;

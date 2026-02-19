@@ -89,8 +89,8 @@ class databaseTest {
             SpecifyArsSyncRepository repository = x.attach(SpecifyArsSyncRepository.class);
             SpecifyArsSyncBatch succeeded = new SpecifyArsSyncBatch(null, Instant.now(), Instant.now().minus(48, ChronoUnit.HOURS), Instant.now().minus(24, ChronoUnit.HOURS), SpecifyArsSyncBatchStatus.SUCCESSFUL, "test2");
             Integer id = repository.createNewBatch(succeeded);
-            SpecifySyncLogEntry test1 = new SpecifySyncLogEntry(null, null, SpecifySyncStatus.STARTED, 1234, "test1", null, id, null, SyncDirection.SPECIFY_TO_ARS);
-            SpecifySyncLogEntry test2 = new SpecifySyncLogEntry(null, null, SpecifySyncStatus.STARTED, 1235, "test2", null, id, null, SyncDirection.SPECIFY_TO_ARS);
+            SpecifySyncLogEntry test1 = new SpecifySyncLogEntry(null, null, SpecifySyncStatus.STARTED, 1234L, "test1", null, id, null, SyncDirection.SPECIFY_TO_ARS);
+            SpecifySyncLogEntry test2 = new SpecifySyncLogEntry(null, null, SpecifySyncStatus.STARTED, 1235L, "test2", null, id, null, SyncDirection.SPECIFY_TO_ARS);
             repository.insertSyncLog(test1);
             repository.insertSyncLog(test2);
             List<SpecifySyncLogEntry> syncLog = repository.getSyncLog(id);
@@ -105,8 +105,8 @@ class databaseTest {
             SpecifyArsSyncRepository repository = x.attach(SpecifyArsSyncRepository.class);
             SpecifyArsSyncBatch succeeded = new SpecifyArsSyncBatch(null, Instant.now(), Instant.now().minus(48, ChronoUnit.HOURS), Instant.now().minus(24, ChronoUnit.HOURS), SpecifyArsSyncBatchStatus.SUCCESSFUL, "test2");
             Integer id = repository.createNewBatch(succeeded);
-            SpecifySyncLogEntry test1 = new SpecifySyncLogEntry(null, null, SpecifySyncStatus.STARTED, 1234, "test1", null, id, null, SyncDirection.SPECIFY_TO_ARS);
-            SpecifySyncLogEntry test2 = new SpecifySyncLogEntry(null, null, SpecifySyncStatus.STARTED, 1235, "testupdate", null, id, null, SyncDirection.SPECIFY_TO_ARS);
+            SpecifySyncLogEntry test1 = new SpecifySyncLogEntry(null, null, SpecifySyncStatus.STARTED, 1234L, "test1", null, id, null, SyncDirection.SPECIFY_TO_ARS);
+            SpecifySyncLogEntry test2 = new SpecifySyncLogEntry(null, null, SpecifySyncStatus.STARTED, 1235L, "testupdate", null, id, null, SyncDirection.SPECIFY_TO_ARS);
             repository.insertSyncLog(test1);
             Integer i = repository.insertSyncLog(test2);
             List<SpecifySyncLogEntry> syncLog = repository.getSyncLog(id);
