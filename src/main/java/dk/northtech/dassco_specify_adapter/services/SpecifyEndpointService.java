@@ -49,7 +49,6 @@ public class SpecifyEndpointService {
     @Inject
     public SpecifyEndpointService(SpecifyProperties specifyProperties,
                                   AssetFileService assetFileService,
-
                                   KeycloakService keycloakService) {
         this.specifyProperties = specifyProperties;
         this.assetFileService = assetFileService;
@@ -68,13 +67,13 @@ public class SpecifyEndpointService {
         logger.info("Specify collection id {}", specifyCollectionId);
         return loginToCollection(specifyCollectionId, loginInfo.csrftoken);
     }
+
     public List<AssetSpecimen> pushImageToSpecify(CollectionObjectAttachment collectionObjectAttachment, Asset arsAsset, boolean deleteAttachment) {
         SpecifyCollectionLogin specifyLogin = loginToCollection(arsAsset.collection);
 
         UploadParams uploadParams = null;
         UploadParams tombstoneParams = null;
 //        for(DasscoFile dasscoFile : dasscoFiles) {
-        CollectionObjectAttachment attachmentToUpdate = collectionObjectAttachment;
 
 
         List<AssetSpecimen> specimenWithIds = new ArrayList<>();
@@ -136,16 +135,16 @@ public class SpecifyEndpointService {
             } else if (arsAsset.date_asset_deleted == null && !assetSpecimen.asset_detached) {
                 // create
                 logger.info("Creating new attachment in specify");
-                attachmentToUpdate.collectionmemberid = collectionObject.collectionmemberid;
-                attachmentToUpdate.collectionobject = "/api/specify/collectionobject/" + collectionObject.id;
+                collectionObjectAttachment.collectionmemberid = collectionObject.collectionmemberid;
+                collectionObjectAttachment.collectionobject = "/api/specify/collectionobject/" + collectionObject.id;
                 collectionObjectAttachment.version = 1;
                 collectionObjectAttachment.attachment.version = 1;
                 if (uploadParams == null) {
-                    uploadParams = uploadFile(specifyLogin, attachmentToUpdate, arsAsset);
-                    collectionObjectAttachment.attachment.mimetype = attachmentToUpdate.attachment.mimetype;
+                    uploadParams = uploadFile(specifyLogin, collectionObjectAttachment, arsAsset);
+                    collectionObjectAttachment.attachment.mimetype = collectionObjectAttachment.attachment.mimetype;
                 }
-                attachmentToUpdate.attachment.attachmentlocation = uploadParams.attachmentLocation;
-                CollectionObjectAttachment coaWithId = postCollectionObjectAttachment(attachmentToUpdate, specifyLogin);
+                collectionObjectAttachment.attachment.attachmentlocation = uploadParams.attachmentLocation;
+                CollectionObjectAttachment coaWithId = postCollectionObjectAttachment(collectionObjectAttachment, specifyLogin);
                 AssetSpecimen newAssetSpecimen = new AssetSpecimen(assetSpecimen.asset_detached, coaWithId.id, assetSpecimen.asset_preparation_type, assetSpecimen.specimen_pid, assetSpecimen.asset_guid);
                 newAssetSpecimen.specimen = assetSpecimen.specimen;
                 specimenWithIds.add(newAssetSpecimen);

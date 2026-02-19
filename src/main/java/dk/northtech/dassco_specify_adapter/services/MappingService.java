@@ -1,8 +1,11 @@
 package dk.northtech.dassco_specify_adapter.services;
 
+import com.google.common.base.Strings;
 import dk.northtech.dassco_specify_adapter.assets.SpecifyMappingsProperties;
 import dk.northtech.dassco_specify_adapter.domain.*;
+import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObject;
 import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObjectAttachment;
+import dk.northtech.dassco_specify_adapter.domain.sync.MappedAsset;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,8 +18,8 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
-import java.util.Map;
+import java.time.temporal.TemporalAccessor;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,6 +42,249 @@ public class MappingService {
         return collectionObjectAttachment;
     }
 
+    public List<MappedAsset> mapAsset(CollectionObject collectionObject) {
+        String values = readConfigARSToSpecify("NHMD", "NHMD Vascular Plants");
+        values = values.replace("\r\n", "${split}")
+                .replace("\n", "${split}");
+        Map<String, String> specifyArsValues = getMappedValues(values);
+        ArrayList<MappedAsset> mappedAssets = new ArrayList<>();
+        for (CollectionObjectAttachment collectionObjectAttachment : collectionObject.collectionobjectattachments) {
+            MappedAsset mappedAsset = new MappedAsset();
+            mappedAsset.asset = new Asset();
+            specifyArsValues.forEach((mappedKey, mappedValue) -> {
+                mappedAsset.attachment = collectionObjectAttachment.attachment;
+                if (mappedValue.equals("${asset_guid}.${file_format}")) {
+                    String specifyValue = getSpecifyStringValue(mappedKey, mappedAsset.attachment);
+                    String[] split = specifyValue.split("\\.");
+                    if (split.length == 2) {
+                        mappedAsset.asset.asset_guid = split[0];
+                        mappedAsset.asset.file_formats.add(split[1]);
+                    } else {
+                        mappedAsset.error = "origfilename filename of specify asset did not follow the format ${asset_guid}.${file_format}, was: " + specifyValue;
+                    }
+                } else {
+                    mapValueToAsset(mappedAsset, mappedValue, mappedKey);
+                }
+                Specimen specimen = new Specimen(collectionObject.catalognumber, null, new HashSet<>());
+                AssetSpecimen assetSpecimen = new AssetSpecimen(false, collectionObjectAttachment.id, null, null, mappedAsset.asset.asset_guid);
+                assetSpecimen.specimen = specimen;
+                mappedAsset.asset.asset_specimen.add(assetSpecimen);
+                mappedAsset.specifyCollectionObjectAttachmentId = collectionObjectAttachment.id;
+//                List<String> strings = resolveValuePattern(mappedValue);
+//                for (int i = 0; i < strings.size(); i += 2) {
+//                    Attachment attachment = collectionObjectAttachment.attachment;
+//                    getSpecifyValue(mappedKey, attachment);
+//                    String token = strings.get(i);
+//                    if (token.startsWith("${")) {
+//
+//                    }
+//                }
+
+            });
+        }
+
+        return mappedAssets;
+    }
+
+    public void mapValueToAsset(MappedAsset mappedAsset, String arsProperty, String specifyProperty) {
+        try {
+
+            switch (arsProperty) {
+                case "${file_format}":
+                    mappedAsset.asset.file_formats.add(getSpecifyStringValue(specifyProperty, mappedAsset.attachment));
+                    break;
+                case "${asset_guid}":
+                    mappedAsset.asset.asset_guid = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                case "${asset_pid}":
+                    mappedAsset.asset.asset_pid = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                case "${make_public}":
+                    mappedAsset.asset.make_public = getSpecifyBooleanValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                case "${date_asset_deleted}":
+                    mappedAsset.asset.date_asset_deleted = getSpecifyDateValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                case "${date_asset_taken}":
+                    mappedAsset.asset.date_asset_taken = getSpecifyDateValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                case "${legality.copyright}":
+                    String copyright = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    if (copyright == null) {
+                        break;
+                    }
+                    if (mappedAsset.asset.legality == null) {
+                        mappedAsset.asset.legality = new Legality();
+                    }
+                    mappedAsset.asset.legality.copyright = copyright;
+                    break;
+
+                case "${legality.credit}":
+                    String credit = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    if (credit == null) {
+                        break;
+                    }
+                    if (mappedAsset.asset.legality == null) {
+                        mappedAsset.asset.legality = new Legality();
+                    }
+                    mappedAsset.asset.legality.credit = credit;
+                    break;
+
+                case "${legality.license}":
+                    String license = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    if (license == null) {
+                        break;
+                    }
+                    if (mappedAsset.asset.legality == null) {
+                        mappedAsset.asset.legality = new Legality();
+                    }
+                    mappedAsset.asset.legality.license = license;
+                    break;
+
+                case "${specify_attachment_remarks}":
+                    mappedAsset.asset.specify_attachment_remarks = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                case "${specify_attachment_title}":
+                    mappedAsset.asset.specify_attachment_title = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                case "${pipeline}":
+                    mappedAsset.asset.pipeline = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                case "${metadata_updated_by}":
+                    mappedAsset.asset.metadata_updated_by = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                case "${mos_id}":
+                    mappedAsset.asset.mos_id = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                case "${metadata_source}":
+                    mappedAsset.asset.metadata_source = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                case "${metadata_version}":
+                    mappedAsset.asset.metadata_version = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                case "${camera_setting_control}":
+                    mappedAsset.asset.camera_setting_control = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                case "${workstation}":
+                    mappedAsset.asset.workstation = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                case "${date_audited}":
+                    mappedAsset.asset.date_audited = getSpecifyDateValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                case "${status}":
+                    mappedAsset.asset.status = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                case "${institution}":
+                    mappedAsset.asset.institution = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                case "${collection}":
+                    mappedAsset.asset.collection = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                case "${payload_type}":
+                    mappedAsset.asset.payload_type = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    break;
+
+                default:
+                    throw new IllegalArgumentException("Unknown placeholder: " + arsProperty);
+            }
+        } catch (RuntimeException e) {
+            mappedAsset.error = e.getMessage();
+        }
+    }
+
+    public Instant getSpecifyDateValue(String token, Attachment attachment) {
+        if (token == null) {
+            throw new IllegalArgumentException("token is null");
+        }
+        String date = switch (token) {
+            case "copyrightdate" -> attachment.copyrightdate;
+            default -> null;
+        };
+        if (!Strings.isNullOrEmpty(date)) {
+            return Instant.parse(date);
+        }
+        return null;
+    }
+
+    public String getSpecifyStringValue(String token, Attachment attachment) {
+        if (token == null) {
+            throw new IllegalArgumentException("token is null");
+        }
+        String s = switch (token) {
+            case "attachmentlocation" -> attachment.attachmentlocation;
+            case "origfilename" -> attachment.origfilename;
+            case "copyrightdate" -> attachment.copyrightdate;
+            case "mimetype" -> attachment.mimetype;
+            case "copyrightholder" -> attachment.copyrightholder;
+            case "credit" -> attachment.credit;
+            case "license" -> attachment.license;
+            case "ispublic" -> attachment.ispublic + "";
+            case "remarks" -> attachment.remarks;
+            case "title" -> attachment.title;
+            default -> null;
+        };
+        return !Strings.isNullOrEmpty(s) ? s.trim() : null;
+    }
+
+    public boolean getSpecifyBooleanValue(String token, Attachment attachment) {
+        if (token == null) {
+            throw new IllegalArgumentException("token is null");
+        }
+        return switch (token) {
+            case "ispublic" -> attachment.ispublic;
+            default -> throw new IllegalArgumentException("Unknown token: " + token);
+        };
+    }
+
+
+    public List<String> resolveValuePattern(String placeholder) {
+        // The specify value can be made out of multiple ARS values connected by constants, example: origfilename=${asset_guid}.${file_format}
+        List<String> valueToken = new ArrayList<>();
+
+        int index = 0;
+
+        while (!placeholder.isEmpty()) {
+            int tokenStart = placeholder.indexOf("${");
+            int tokenEnd = placeholder.indexOf("}");
+            if (tokenStart == -1) {
+                valueToken.add(placeholder);
+                break;
+            }
+            if (tokenStart != 0) {
+                valueToken.add(placeholder.substring(0, tokenStart));
+            }
+            valueToken.add(placeholder.substring(tokenStart, tokenEnd + 1));
+            placeholder = placeholder.substring(tokenEnd + 1);
+
+            System.out.println(placeholder);
+            System.out.println(index);
+            System.out.println("tokenStart: " + tokenStart);
+            System.out.println("tokenend" + tokenEnd);
+            index = tokenEnd;
+
+        }
+
+        return valueToken;
+    }
+
     public CollectionObjectAttachment mapAsset(Asset asset, String template) {
         //Replace placeholders with actual values from the asset
         String values = replacePlaceholders(template, asset);
@@ -50,7 +296,7 @@ public class MappingService {
 //        collectionObjectAttachment.ars_collection = asset.collection;
 //        collectionObjectAttachment.ars_institution = asset.institution;
 //        collectionObjectAttachment.ars_assetguid = asset.asset_guid;
-        if(asset.asset_specimen.isEmpty()) {
+        if (asset.asset_specimen.isEmpty()) {
             throw new SpecifyAdapterException("No specimens found for asset: " + asset, AcknowledgeStatus.MAPPING_ERROR);
         }
 //        collectionObjectAttachment.ars_barcode = asset.specimens.getFirst().barcode();
@@ -149,7 +395,28 @@ public class MappingService {
             file = new File(specifyMappingsProperties.location() + institution + "/default.conf");
         }
         try {
-            if(!file.exists()) {
+            if (!file.exists()) {
+                throw new SpecifyAdapterException("No mapping found on: " + file, AcknowledgeStatus.MAPPING_ERROR);
+            }
+            return Files.readString(Path.of(file.getPath()));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public String readConfigARSToSpecify(String institution, String collection) {
+        File institutionConfig = new File(specifyMappingsProperties.location() + "institution");
+        if (institutionConfig.exists()) {
+            logger.info("No mapping found on: " + institutionConfig.toString());
+            throw new SpecifyAdapterException("No mapping found for institution: " + institution, AcknowledgeStatus.MAPPING_ERROR);
+        }
+        File file = new File(specifyMappingsProperties.location() + institution + "/" + collection + ".conf");
+        if (!file.exists()) {
+            logger.info("No mapping found on: " + file + " using default.conf");
+            file = new File(specifyMappingsProperties.location() + institution + "/default.conf");
+        }
+        try {
+            if (!file.exists()) {
                 throw new SpecifyAdapterException("No mapping found on: " + file, AcknowledgeStatus.MAPPING_ERROR);
             }
             return Files.readString(Path.of(file.getPath()));

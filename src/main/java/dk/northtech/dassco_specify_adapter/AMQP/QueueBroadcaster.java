@@ -29,6 +29,7 @@ public class QueueBroadcaster extends AbstractIdleService {
     QueueSender sender;
     QueueSession session;
     QueueConnection queueConnection;
+    QueueSender specifyArsSyncSender;
     private Instant lastRestart;
     ObjectWriter writer = new ObjectMapper().registerModule(new JavaTimeModule()).writer().withDefaultPrettyPrinter();
 
@@ -65,8 +66,11 @@ public class QueueBroadcaster extends AbstractIdleService {
             this.queueConnection.start();
             this.session = this.queueConnection.createQueueSession(false, Session.DUPS_OK_ACKNOWLEDGE);
             Queue queue = this.session.createQueue(queueName());
+            Queue specifyArsSync = this.session.createQueue(amqpConfig.specifyArsSyncQueueName());
             this.sender = this.session.createSender(queue);
             this.sender.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
+            this.specifyArsSyncSender = this.session.createSender(specifyArsSync);
+            this.specifyArsSyncSender.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
             this.lastRestart = Instant.now();
         } catch (JMSException e) {
             throw new RuntimeException("QueueBroadcaster failed to connect to the queue", e);
@@ -132,6 +136,9 @@ public class QueueBroadcaster extends AbstractIdleService {
         try {
             if (this.sender != null) {
                 this.sender.close();
+            }
+            if( this.specifyArsSyncSender != null) {
+                this.specifyArsSyncSender.close();
             }
             if (this.queueConnection != null) {
                 this.queueConnection.stop();

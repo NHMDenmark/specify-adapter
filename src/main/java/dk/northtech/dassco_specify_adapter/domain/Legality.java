@@ -4,9 +4,22 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.util.Objects;
 
-public record Legality(@JsonIgnore Long legality_id, String copyright, String license, String credit) {
+public final class Legality {
+    @JsonIgnore
+    private Long legality_id;
+    public String copyright;
+    public String license;
+    public String credit;
 
+    public Legality(Long legality_id, String copyright, String license, String credit) {
+        this.legality_id = legality_id;
+        this.copyright = copyright;
+        this.license = license;
+        this.credit = credit;
+    }
 
+    public Legality() {
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -20,4 +33,31 @@ public record Legality(@JsonIgnore Long legality_id, String copyright, String li
     public int hashCode() {
         return Objects.hash(legality_id, copyright, license, credit);
     }
+
+    @JsonIgnore
+    public Long legality_id() {
+        return legality_id;
+    }
+
+    public String copyright() {
+        return copyright;
+    }
+
+    public String license() {
+        return license;
+    }
+
+    public String credit() {
+        return credit;
+    }
+
+    @Override
+    public String toString() {
+        return "Legality[" +
+                "legality_id=" + legality_id + ", " +
+                "copyright=" + copyright + ", " +
+                "license=" + license + ", " +
+                "credit=" + credit + ']';
+    }
+
 }

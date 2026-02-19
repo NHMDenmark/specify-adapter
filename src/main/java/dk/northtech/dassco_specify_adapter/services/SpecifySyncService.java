@@ -8,9 +8,7 @@ import dk.northtech.dassco_specify_adapter.AMQP.QueueBroadcaster;
 import dk.northtech.dassco_specify_adapter.domain.*;
 import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObject;
 import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObjectAttachment;
-import dk.northtech.dassco_specify_adapter.domain.sync.SpecifyArsSyncBatch;
-import dk.northtech.dassco_specify_adapter.domain.sync.SpecifyArsSyncBatchStatus;
-import dk.northtech.dassco_specify_adapter.domain.sync.SpecifySyncLogEntry;
+import dk.northtech.dassco_specify_adapter.domain.sync.*;
 import dk.northtech.dassco_specify_adapter.repository.SpecifyArsSyncRepository;
 import jakarta.inject.Inject;
 import org.jdbi.v3.core.Jdbi;
@@ -72,7 +70,8 @@ public class SpecifySyncService {
         Optional<SpecifyArsSyncBatch> latestSuccessfulBatch = getLatestSuccessfulBatch();
         Instant fromInstant = null;
         String specifyFromDate = null;
-        String specifyToDate = specifyDateFormat.format(Instant.now());
+        Instant now = Instant.now();
+        String specifyToDate = specifyDateFormat.format(now);
 
         if (latestSuccessfulBatch.isPresent()) {
             SpecifyArsSyncBatch batch = latestSuccessfulBatch.get();
@@ -83,12 +82,35 @@ public class SpecifySyncService {
         specifyFromDate = specifyDateFormat.format(fromInstant);
         try {
             List<CollectionObject> collectionObjectsToSync = specifyQueryService.findCollectionObjectsToSync(specifyFromDate, specifyToDate);
+            List<SpecifySyncLogEntry> specifySyncLogEntries = new ArrayList<>();
+
+
+            collectionObjectsToSync.stream()
+                    .flatMap(collectionObject -> mappingService.mapAsset(collectionObject).stream())
+                    .map(mappedAsset -> {
+                        // Hardcode to NHMD for now
+                        mappedAsset.asset.institution = "NHMD";
+                        mappedAsset.asset.collection = "NHMD_Vascular_Plants";
+                        specifySyncLogEntries.add(new SpecifySyncLogEntry(null
+                                , mappedAsset.SpecifyModifiedDate
+                                , mappedAsset.error == null ? SpecifySyncStatus.STARTED: SpecifySyncStatus.FAILED
+                                , mappedAsset.specifyCollectionObjectAttachmentId
+                                , mappedAsset.error
+                                , now
+                                , null
+                                , mappedAsset.asset.asset_guid
+                                , SyncDirection.SPECIFY_TO_ARS));
+                        return mappedAsset.asset;
+                    });
+
+            SpecifyArsSyncBatch specifyArsSyncBatch = new SpecifyArsSyncBatch(null, now, fromInstant, now, SpecifyArsSyncBatchStatus.STARTED, null, specifySyncLogEntries);
+            specifyArsSyncBatch = startSyncBatch(specifyArsSyncBatch);
 
         } catch (Exception e) {
             Instant finalFromInstant = fromInstant;
             jdbi.withHandle(handle -> {
                 SpecifyArsSyncRepository attach = handle.attach(SpecifyArsSyncRepository.class);
-                attach.createNewBatch(new SpecifyArsSyncBatch(null,Instant.now(), finalFromInstant, Instant.now(), SpecifyArsSyncBatchStatus.FAILED,e.getMessage()));
+                attach.createNewBatch(new SpecifyArsSyncBatch(null, now, finalFromInstant, now, SpecifyArsSyncBatchStatus.FAILED, e.getMessage()));
                 return handle;
             });
             throw new RuntimeException(e);

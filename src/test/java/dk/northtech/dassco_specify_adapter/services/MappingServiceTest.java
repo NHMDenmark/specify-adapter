@@ -2,6 +2,7 @@ package dk.northtech.dassco_specify_adapter.services;
 
 import dk.northtech.dassco_specify_adapter.assets.SpecifyMappingsProperties;
 import dk.northtech.dassco_specify_adapter.domain.*;
+import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObject;
 import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObjectAttachment;
 import org.junit.jupiter.api.Test;
 
@@ -71,7 +72,7 @@ public class MappingServiceTest {
     public static Asset getTestAsset() {
         Asset asset = new Asset();
         Specimen specimen = new Specimen("barcode", "specimen_pid", new HashSet<>(Arrays.asList("slide")));
-        asset.asset_specimen = Arrays.asList(new AssetSpecimen(false, null, "slide" , null, "specimen_pid", asset.asset_guid, null));
+        asset.asset_specimen = Arrays.asList(new AssetSpecimen(false, null, "slide", null, "specimen_pid", asset.asset_guid, null));
         asset.asset_specimen.get(0).specimen = specimen;
         asset.asset_locked = false;
         asset.status = "BEING_PROCESSED";
@@ -99,6 +100,71 @@ public class MappingServiceTest {
         return asset;
     }
 
+    @Test
+    void mapAsset() {
+        Attachment attachment = new Attachment();
+        MappingService mappingService = new MappingService(new SpecifyMappingsProperties("./mappings/"));
+        CollectionObjectAttachment collectionObjectAttachment = new CollectionObjectAttachment();
+        collectionObjectAttachment.attachment = attachment;
+        CollectionObject collectionObject = new CollectionObject();
+        collectionObject.collectionobjectattachments = List.of(collectionObjectAttachment);
+        mappingService.mapAsset(collectionObject);
+
+
+    }
+
+    @Test
+    void testtest() {
+        List<String> valueToken = new ArrayList<>();
+        List<String> constantToken = new ArrayList<>();
+        String example = "asdasdff${asset_guid}adsf.${file_format}${asdf}";
+        int index = 0;
+
+        int attempts = 0;
+        while (!example.isEmpty()) {
+            int tokenStart = example.indexOf("${");
+            int tokenEnd = example.indexOf("}");
+            if (tokenStart == -1) {
+                if (!example.isEmpty()) {
+                    constantToken.add(example);
+                }
+                break;
+            }
+            if(tokenStart != 0) {
+                constantToken.add(example.substring(0, tokenStart));
+            }
+            valueToken.add(example.substring(tokenStart, tokenEnd + 1));
+            example = example.substring(tokenEnd + 1);
+
+            System.out.println(example);
+            System.out.println(index);
+            System.out.println("tokenStart: " + tokenStart);
+            System.out.println("tokenend" + tokenEnd);
+            index = tokenEnd;
+            attempts++;
+        }
+        System.out.println(valueToken);
+        System.out.println(constantToken);
+
+    }
+
+    Attachment getTestAttachment() {
+        Attachment attachment = new Attachment();
+        attachment.attachmentlocation = "attachmentlocation";
+        attachment.origfilename = "origfilename";
+        attachment.copyrightdate = "copyrightdate";
+        attachment.filecreateddate = "filecreateddate";
+        attachment.mimetype = "mimetype";
+        attachment.copyrightholder = "copyrightholder";
+        attachment.credit = "credit";
+        attachment.license = "license";
+        attachment.ispublic = true;
+        attachment.remarks = "remarks";
+        attachment.title = "title";
+        return attachment;
+    }
+
+    ;
 //    public static Instant format(String isoZ) {
 //        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd hh:mm:ssZ");
 //        TemporalAccessor parse = dateTimeFormatter.parse("2017-08-27T17:43:11Z");
