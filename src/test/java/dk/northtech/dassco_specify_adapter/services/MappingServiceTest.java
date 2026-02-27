@@ -7,6 +7,9 @@ import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObjectAttach
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -164,6 +167,14 @@ public class MappingServiceTest {
         return attachment;
     }
 
+    @Test
+    void testtest2() {
+        DateTimeFormatter specifyDateFormat = DateTimeFormatter.ISO_LOCAL_DATE_TIME
+                .withZone(ZoneId.of("Europe/Copenhagen"));
+        TemporalAccessor parse = specifyDateFormat.parse("2026-02-03T05:09:28");
+
+        System.out.println(Instant.from(parse));
+    }
     ;
 //    public static Instant format(String isoZ) {
 //        DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd hh:mm:ssZ");

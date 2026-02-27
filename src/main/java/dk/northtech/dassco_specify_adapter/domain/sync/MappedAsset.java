@@ -4,6 +4,8 @@ import dk.northtech.dassco_specify_adapter.domain.Asset;
 import dk.northtech.dassco_specify_adapter.domain.Attachment;
 
 import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
 
 public class MappedAsset {
     public Asset asset;
@@ -11,5 +13,6 @@ public class MappedAsset {
     public String error;
     public Instant SpecifyModifiedDate;
     public Long specifyCollectionObjectAttachmentId;
+    public Set<String> updatedFields = new HashSet<>();
 
 }

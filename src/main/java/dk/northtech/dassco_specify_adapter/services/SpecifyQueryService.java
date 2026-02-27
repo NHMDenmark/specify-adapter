@@ -73,6 +73,7 @@ public class SpecifyQueryService {
                 logger.info("found collectionObject with id {}", x.get(0)  );
                 logger.info("found collectionObject with last modified {}", x.get(1)  );
                 Optional<CollectionObject> collectionObjectOpt = getCollectionObject(specifyLogin, (Integer) x.get(0));
+                logger.info("found collectionObject {}", collectionObjectOpt.isPresent());
                 collectionObjectOpt.ifPresent(foundCollectionObjects::add);
             }
         });

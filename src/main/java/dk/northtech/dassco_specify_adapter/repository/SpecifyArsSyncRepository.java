@@ -16,7 +16,7 @@ public interface SpecifyArsSyncRepository extends SqlObject {
     @SqlUpdate("INSERT INTO specify_ars_sync_batch (batch_timestamp, specify_from_timestamp, specify_to_timestamp, status, additional_info) VALUES (:batch_timestamp,:specify_from_timestamp,:specify_to_timestamp,:status,:additional_info)")
     Integer createNewBatch(@BindMethods SpecifyArsSyncBatch batch);
 
-    @SqlQuery("SELECT * FROM specify_ars_sync_batch WHERE status IN ('PARTIAL_SUCCESS', 'SUCCESSFUL', 'STARTED') ORDER BY specify_to_timestamp LIMIT 1")
+    @SqlQuery("SELECT * FROM specify_ars_sync_batch WHERE status IN ('PARTIAL_SUCCESS', 'SUCCESSFUL', 'STARTED') ORDER BY specify_to_timestamp DESC LIMIT 1")
     SpecifyArsSyncBatch getLatestNonFailed();
 
     @GetGeneratedKeys
@@ -44,7 +44,7 @@ public interface SpecifyArsSyncRepository extends SqlObject {
     @SqlQuery("SELECT * FROM specify_sync_log s WHERE s.specify_ars_sync_batch_id = :specify_ars_sync_batch_id")
     List<SpecifySyncLogEntry> getSyncLog(@Bind Integer specify_ars_sync_batch_id);
 
-    @GetGeneratedKeys
+
     @SqlUpdate("""
             UPDATE specify_sync_log SET specify_modified_date = :specify_modified_date
                                     , status = :status

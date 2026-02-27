@@ -7,6 +7,7 @@ import com.google.common.util.concurrent.AbstractIdleService;
 import com.rabbitmq.jms.admin.RMQConnectionFactory;
 import dk.northtech.dassco_specify_adapter.configuration.AMQPConfig;
 import dk.northtech.dassco_specify_adapter.domain.Acknowledge;
+import dk.northtech.dassco_specify_adapter.domain.sync.SpecifyArsSyncMessage;
 import dk.northtech.dassco_specify_adapter.services.KeycloakService;
 import jakarta.inject.Inject;
 import jakarta.jms.*;
@@ -120,6 +121,24 @@ public class QueueBroadcaster extends AbstractIdleService {
             sender.send(textMessage(this.session, writer.writeValueAsString(acknowledge)));
         } catch (Exception e) {
             LOGGER.error("Could not send object {}", acknowledge);
+            throw new RuntimeException("An error occurred when trying to send the object to the queue", e);
+        }
+    }
+
+    public void sendMessage(SpecifyArsSyncMessage message) {
+        synchronized (this) {
+            if (lastRestart.plus(58, ChronoUnit.MINUTES).isBefore(Instant.now())) {
+                LOGGER.info("Refreshing sesh");
+                this.closeSession();
+                this.init();
+            }
+        }
+        try {
+            LOGGER.info("Sending object {}", message);
+
+            specifyArsSyncSender.send(textMessage(this.session, writer.writeValueAsString(message)));
+        } catch (Exception e) {
+            LOGGER.error("Could not send object {}", message);
             throw new RuntimeException("An error occurred when trying to send the object to the queue", e);
         }
     }

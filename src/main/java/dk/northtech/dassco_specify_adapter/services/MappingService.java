@@ -16,6 +16,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAccessor;
@@ -27,7 +29,8 @@ public class MappingService {
     private final SpecifyMappingsProperties specifyMappingsProperties;
     private static final Logger logger = LoggerFactory.getLogger(MappingService.class);
     private DateTimeFormatter format = DateTimeFormatter.ISO_LOCAL_DATE.withZone(ZoneOffset.UTC);
-
+    private final DateTimeFormatter specifyDateFormat = DateTimeFormatter.ISO_LOCAL_DATE_TIME
+            .withZone(ZoneId.of("Europe/Copenhagen"));
     @Inject
     public MappingService(SpecifyMappingsProperties specifyMappingsProperties) {
         this.specifyMappingsProperties = specifyMappingsProperties;
@@ -47,8 +50,10 @@ public class MappingService {
         values = values.replace("\r\n", "${split}")
                 .replace("\n", "${split}");
         Map<String, String> specifyArsValues = getMappedValues(values);
+        logger.info("collection o {}", collectionObject);
         ArrayList<MappedAsset> mappedAssets = new ArrayList<>();
         for (CollectionObjectAttachment collectionObjectAttachment : collectionObject.collectionobjectattachments) {
+            logger.info("mapping attachment {}", collectionObjectAttachment);
             MappedAsset mappedAsset = new MappedAsset();
             mappedAsset.asset = new Asset();
             specifyArsValues.forEach((mappedKey, mappedValue) -> {
@@ -70,6 +75,7 @@ public class MappingService {
                 assetSpecimen.specimen = specimen;
                 mappedAsset.asset.asset_specimen.add(assetSpecimen);
                 mappedAsset.specifyCollectionObjectAttachmentId = collectionObjectAttachment.id;
+
 //                List<String> strings = resolveValuePattern(mappedValue);
 //                for (int i = 0; i < strings.size(); i += 2) {
 //                    Attachment attachment = collectionObjectAttachment.attachment;
@@ -79,8 +85,11 @@ public class MappingService {
 //
 //                    }
 //                }
-
             });
+            System.out.println(" Tsest          tezt  " +collectionObject.timestampmodified);
+            mappedAsset.SpecifyModifiedDate = Instant.from(specifyDateFormat.parse(collectionObject.timestampmodified));
+            mappedAssets.add(mappedAsset);
+            mappedAsset.updatedFields.addAll(specifyArsValues.values());
         }
 
         return mappedAssets;
