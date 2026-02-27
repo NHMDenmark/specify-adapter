@@ -7,10 +7,7 @@ import com.drew.metadata.Metadata;
 import com.drew.metadata.Tag;
 import dk.northtech.dassco_specify_adapter.configuration.AssetServiceConfig;
 import dk.northtech.dassco_specify_adapter.domain.specify.LoginInfo;
-import dk.northtech.dassco_specify_adapter.services.AssetFileService;
-import dk.northtech.dassco_specify_adapter.services.SpecifyEndpointService;
-import dk.northtech.dassco_specify_adapter.services.SpecifyQueryService;
-import dk.northtech.dassco_specify_adapter.services.TokenService;
+import dk.northtech.dassco_specify_adapter.services.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -49,20 +46,12 @@ import static jakarta.ws.rs.core.MediaType.MULTIPART_FORM_DATA;
 @Path("/sync")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "Asset Files", description = "Endpoints related to assets' files.")
 public class Sync {
-    private final SpecifyQueryService specifyQueryService;
+    private final SpecifySyncService specifySyncService;
     private static final Logger LOGGER = LoggerFactory.getLogger(Sync.class);
 
-    @Value("${asset-service.tokenRequiredForGet}")
-    private boolean tokenRequiredForGet;
-
-    private ServerProperties serverProperties;
-
-    String hostname = "host.docker.internal";
-
-
     @Inject
-    public Sync(SpecifyQueryService specifyQueryService) {
-        this.specifyQueryService = specifyQueryService;
+    public Sync(SpecifySyncService specifySyncService) {
+        this.specifySyncService = specifySyncService;
     }
 
     @GET
@@ -72,6 +61,7 @@ public class Sync {
 //    @ApiResponse(responseCode = "400-599", content = @Content(mediaType = APPLICATION_JSON, schema = @Schema(implementation = DaSSCoError.class)))
     public Response getInternalStatusAmt(@PathParam("timeframe") String timeframe) {
 //        specifyQueryService.findCollectionObjectsToSync();
+        specifySyncService.specifyToArsSync();
         return Response.ok().build();
     }
 

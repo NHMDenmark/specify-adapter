@@ -75,7 +75,8 @@ public class SpecifySyncService {
 
         if (latestSuccessfulBatch.isPresent()) {
             SpecifyArsSyncBatch batch = latestSuccessfulBatch.get();
-            fromInstant = batch.specify_from_timestamp();
+            fromInstant = batch.specify_to_timestamp();
+            System.out.println("låårt " + fromInstant);
         } else {
             fromInstant = DEFAULT_SYNC_MILLIS;
         }
@@ -83,28 +84,55 @@ public class SpecifySyncService {
         try {
             List<CollectionObject> collectionObjectsToSync = specifyQueryService.findCollectionObjectsToSync(specifyFromDate, specifyToDate);
             List<SpecifySyncLogEntry> specifySyncLogEntries = new ArrayList<>();
+            log.info("Found {} collectionObjects to sync", collectionObjectsToSync.size());
 
 
-            collectionObjectsToSync.stream()
+            List<MappedAsset> mappedAssets = collectionObjectsToSync.stream()
                     .flatMap(collectionObject -> mappingService.mapAsset(collectionObject).stream())
-                    .map(mappedAsset -> {
+                    .peek(mappedAsset -> {
                         // Hardcode to NHMD for now
                         mappedAsset.asset.institution = "NHMD";
                         mappedAsset.asset.collection = "NHMD_Vascular_Plants";
-                        specifySyncLogEntries.add(new SpecifySyncLogEntry(null
-                                , mappedAsset.SpecifyModifiedDate
-                                , mappedAsset.error == null ? SpecifySyncStatus.STARTED: SpecifySyncStatus.FAILED
-                                , mappedAsset.specifyCollectionObjectAttachmentId
-                                , mappedAsset.error
-                                , now
-                                , null
-                                , mappedAsset.asset.asset_guid
-                                , SyncDirection.SPECIFY_TO_ARS));
-                        return mappedAsset.asset;
-                    });
+                    }).toList();
 
-            SpecifyArsSyncBatch specifyArsSyncBatch = new SpecifyArsSyncBatch(null, now, fromInstant, now, SpecifyArsSyncBatchStatus.STARTED, null, specifySyncLogEntries);
-            specifyArsSyncBatch = startSyncBatch(specifyArsSyncBatch);
+            mappedAssets.forEach(mappedAsset -> {
+                SpecifySyncStatus specifySyncStatus = mappedAsset.error == null ? SpecifySyncStatus.STARTED : SpecifySyncStatus.FAILED;
+                if(mappedAsset.error == null) {
+                    try {
+                        queueBroadcaster.sendMessage(new SpecifyArsSyncMessage(mappedAsset.asset, mappedAsset.updatedFields));
+                    }catch (Exception e) {
+                        mappedAsset.error = e.getMessage();
+                        specifySyncStatus = SpecifySyncStatus.FAILED;
+                    }
+                }
+                specifySyncLogEntries.add(new SpecifySyncLogEntry(null
+                    , mappedAsset.SpecifyModifiedDate
+                    , specifySyncStatus
+                    , mappedAsset.specifyCollectionObjectAttachmentId
+                    , mappedAsset.error
+                    , now
+                    , null
+                    , mappedAsset.asset.asset_guid
+                    , SyncDirection.SPECIFY_TO_ARS));
+            });
+
+
+//            specifySyncLogEntries.add(new SpecifySyncLogEntry(null
+//                    , mappedAsset.SpecifyModifiedDate
+//                    , mappedAsset.error == null ? SpecifySyncStatus.STARTED : SpecifySyncStatus.FAILED
+//                    , mappedAsset.specifyCollectionObjectAttachmentId
+//                    , mappedAsset.error
+//                    , now
+//                    , null
+//                    , mappedAsset.asset.asset_guid
+//                    , SyncDirection.SPECIFY_TO_ARS));
+//            log.info("Mapped zzet " + mappedAsset.asset.asset_guid);
+//            return mappedAsset.asset;
+            if(!specifySyncLogEntries.isEmpty()) {
+                SpecifyArsSyncBatch specifyArsSyncBatch = new SpecifyArsSyncBatch(null, now, fromInstant, now, SpecifyArsSyncBatchStatus.STARTED, null, specifySyncLogEntries);
+                specifyArsSyncBatch = startSyncBatch(specifyArsSyncBatch);
+            }
+
 
         } catch (Exception e) {
             Instant finalFromInstant = fromInstant;

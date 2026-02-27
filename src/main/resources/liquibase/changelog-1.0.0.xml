@@ -114,7 +114,7 @@
 
         </sql>
     </changeSet>
-    <changeSet id="3.11.0:ADD_SPECIFY_ARS_SYNC_FKS" author="Thomas Skov Bornerup">
+    <changeSet id="1.0.0:ADD_SPECIFY_ARS_SYNC_FKS" author="Thomas Skov Bornerup">
         <addForeignKeyConstraint baseTableName="specify_sync_log"
                                  baseColumnNames="specify_ars_sync_batch_id"
                                  constraintName="fk_specify_sync_log__specify_ars_sync_batch"
@@ -136,8 +136,8 @@
                                  referencedColumnNames="specify_sync_log_status"/>
 
     </changeSet>
-    <!--    <changeSet id="VERSION-3.11.0" author="MG" context="default">-->
-    <!--        <tagDatabase tag="VERSION-3.11.0"/>-->
+    <!--    <changeSet id="VERSION-1.0.0" author="MG" context="default">-->
+    <!--        <tagDatabase tag="VERSION-1.0.0"/>-->
     <!--    </changeSet>-->
 
 </databaseChangeLog>

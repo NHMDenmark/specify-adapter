@@ -300,7 +300,6 @@ public class SpecifyEndpointService {
                 throw new RuntimeException("There was no csrftoken cookie in the response.");
             } else {
                 logger.error("There was an error while trying to login using the specify API, response code: " + response.statusCode());
-                System.out.println(response.headers().toString());
                 throw new RuntimeException("There has been an error logging in: " + response.body());
             }
         } catch (IOException | InterruptedException e) {
