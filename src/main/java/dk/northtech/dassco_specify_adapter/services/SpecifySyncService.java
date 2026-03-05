@@ -19,9 +19,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class SpecifySyncService {
@@ -68,15 +66,14 @@ public class SpecifySyncService {
 
     public void specifyToArsSync() {
         Optional<SpecifyArsSyncBatch> latestSuccessfulBatch = getLatestSuccessfulBatch();
-        Instant fromInstant = null;
         String specifyFromDate = null;
         Instant now = Instant.now();
         String specifyToDate = specifyDateFormat.format(now);
 
+        Instant fromInstant = null;
         if (latestSuccessfulBatch.isPresent()) {
             SpecifyArsSyncBatch batch = latestSuccessfulBatch.get();
             fromInstant = batch.specify_to_timestamp();
-            System.out.println("låårt " + fromInstant);
         } else {
             fromInstant = DEFAULT_SYNC_MILLIS;
         }
@@ -87,51 +84,45 @@ public class SpecifySyncService {
             log.info("Found {} collectionObjects to sync", collectionObjectsToSync.size());
 
 
-            List<MappedAsset> mappedAssets = collectionObjectsToSync.stream()
-                    .flatMap(collectionObject -> mappingService.mapAsset(collectionObject).stream())
-                    .peek(mappedAsset -> {
-                        // Hardcode to NHMD for now
-                        mappedAsset.asset.institution = "NHMD";
-                        mappedAsset.asset.collection = "NHMD_Vascular_Plants";
-                    }).toList();
-
-            mappedAssets.forEach(mappedAsset -> {
-                SpecifySyncStatus specifySyncStatus = mappedAsset.error == null ? SpecifySyncStatus.STARTED : SpecifySyncStatus.FAILED;
-                if(mappedAsset.error == null) {
-                    try {
-                        queueBroadcaster.sendMessage(new SpecifyArsSyncMessage(mappedAsset.asset, mappedAsset.updatedFields));
-                    }catch (Exception e) {
-                        mappedAsset.error = e.getMessage();
-                        specifySyncStatus = SpecifySyncStatus.FAILED;
-                    }
-                }
-                specifySyncLogEntries.add(new SpecifySyncLogEntry(null
-                    , mappedAsset.SpecifyModifiedDate
-                    , specifySyncStatus
-                    , mappedAsset.specifyCollectionObjectAttachmentId
-                    , mappedAsset.error
-                    , now
-                    , null
-                    , mappedAsset.asset.asset_guid
-                    , SyncDirection.SPECIFY_TO_ARS));
+//            List<MappedAsset> mappedAssets = collectionObjectsToSync.stream()
+//                    .flatMap(collectionObject -> mappingService.mapAsset(collectionObject).stream())
+//                    .toList();
+            Map<Long, MappedAsset> entryIdAsset = new HashMap<>();
+            Instant finalFromInsant = fromInstant;
+            jdbi.inTransaction(handle -> {
+                SpecifyArsSyncRepository repository = handle.attach(SpecifyArsSyncRepository.class);
+                Integer batchId = repository.createNewBatch(new SpecifyArsSyncBatch(null, now, finalFromInsant, now, SpecifyArsSyncBatchStatus.STARTED, null, specifySyncLogEntries));
+                collectionObjectsToSync.stream()
+                        .flatMap(collectionObject -> mappingService.mapAsset(collectionObject).stream()).forEach(
+                mappedAsset -> {
+                    SpecifySyncStatus specifySyncStatus = mappedAsset.error == null ? SpecifySyncStatus.STARTED : SpecifySyncStatus.FAILED;
+                    SpecifySyncLogEntry specifySyncLogEntry = new SpecifySyncLogEntry(null
+                            , mappedAsset.SpecifyModifiedDate
+                            , specifySyncStatus
+                            , mappedAsset.specifyCollectionObjectAttachmentId
+                            , mappedAsset.error
+                            , now
+                            , batchId
+                            , mappedAsset.asset.asset_guid
+                            , SyncDirection.SPECIFY_TO_ARS);
+                    Long entryId = repository.insertSyncLog(specifySyncLogEntry);
+                    entryIdAsset.put(entryId, mappedAsset);
+                });
+                handle.commit();
+                return handle;
             });
+            entryIdAsset.forEach((entryId, mappedAsset) -> {
 
-
-//            specifySyncLogEntries.add(new SpecifySyncLogEntry(null
-//                    , mappedAsset.SpecifyModifiedDate
-//                    , mappedAsset.error == null ? SpecifySyncStatus.STARTED : SpecifySyncStatus.FAILED
-//                    , mappedAsset.specifyCollectionObjectAttachmentId
-//                    , mappedAsset.error
-//                    , now
-//                    , null
-//                    , mappedAsset.asset.asset_guid
-//                    , SyncDirection.SPECIFY_TO_ARS));
-//            log.info("Mapped zzet " + mappedAsset.asset.asset_guid);
-//            return mappedAsset.asset;
-            if(!specifySyncLogEntries.isEmpty()) {
-                SpecifyArsSyncBatch specifyArsSyncBatch = new SpecifyArsSyncBatch(null, now, fromInstant, now, SpecifyArsSyncBatchStatus.STARTED, null, specifySyncLogEntries);
-                specifyArsSyncBatch = startSyncBatch(specifyArsSyncBatch);
-            }
+                    if (mappedAsset.error == null) {
+                        try {
+                            queueBroadcaster.sendMessage(new SpecifyArsSyncMessage(mappedAsset.asset, mappedAsset.updatedFields, entryId));
+                        } catch (Exception e) {
+                            mappedAsset.error = e.getMessage();
+                            //TODO set err
+//                            specifySyncStatus = SpecifySyncStatus.FAILED;
+                        }
+                    }
+            });
 
 
         } catch (Exception e) {
@@ -145,6 +136,57 @@ public class SpecifySyncService {
         }
 
 
+    }
+
+    public void handleAcknowledge(SyncAcknowledge acknowledge) {
+        jdbi.withHandle(h -> {
+            int countNotStarted = 0;
+            int countSuccess = 0;
+            int countFailed = 0;
+            Integer specifySyncBatchId = null;
+            SpecifyArsSyncRepository syncRepository = h.attach(SpecifyArsSyncRepository.class);
+            List<SpecifySyncLogEntry> entries = syncRepository.getSyncLogEntriesBySyncLogId(acknowledge.specifySyncLogId());
+            log.info("Found {} SyncLogEntries", entries.size());
+            if (!entries.isEmpty()) {
+                specifySyncBatchId = entries.getFirst().specify_ars_sync_batch_id();
+            }
+            for (SpecifySyncLogEntry entry : entries) {
+                SpecifySyncLogEntry syncLogEntry = entry;
+                log.info("Found SyncLogEntry {}", syncLogEntry);
+                if (entry.specify_sync_log_id().equals(acknowledge.specifySyncLogId())) {
+                    syncLogEntry = new SpecifySyncLogEntry(syncLogEntry.specify_sync_log_id()
+                            , syncLogEntry.specify_modified_date()
+                            , acknowledge.specifySyncStatus()
+                            , syncLogEntry.specify_collection_object_attachment_id()
+                            , acknowledge.additional_info()
+                            , syncLogEntry.sync_attempt_update_timestamp()
+                            , syncLogEntry.specify_ars_sync_batch_id()
+                            , syncLogEntry.ars_asset_guid()
+                            , syncLogEntry.sync_direction());
+                    syncRepository.updateSyncLog(syncLogEntry);
+                }
+                if (!SpecifySyncStatus.STARTED.equals(syncLogEntry.status())) {
+                    countNotStarted++;
+                }
+                if (SpecifySyncStatus.FAILED.equals(syncLogEntry.status())) {
+                    countFailed++;
+                }
+                if (SpecifySyncStatus.SUCCEEDED.equals(syncLogEntry.status())) {
+                    countSuccess++;
+                }
+            }
+            // Set batch status when all started synchronisations are accounted for
+            if (countNotStarted == entries.size() && specifySyncBatchId != null) {
+                if (countSuccess == entries.size()) {
+                    syncRepository.updateSpecifyArsSyncBatch(specifySyncBatchId, SpecifyArsSyncBatchStatus.SUCCEEDED, null);
+                } else if (countFailed == entries.size()) {
+                    syncRepository.updateSpecifyArsSyncBatch(specifySyncBatchId, SpecifyArsSyncBatchStatus.FAILED, "All assets failed");
+                } else {
+                    syncRepository.updateSpecifyArsSyncBatch(specifySyncBatchId, SpecifyArsSyncBatchStatus.FAILED_ENTRIES, "Some assets failed");
+                }
+            }
+            return h;
+        });
     }
 
     public Optional<SpecifyArsSyncBatch> getLatestSuccessfulBatch() {
@@ -167,7 +209,7 @@ public class SpecifySyncService {
             SpecifyArsSyncRepository repo = h.attach(SpecifyArsSyncRepository.class);
             Integer newBatchId = repo.createNewBatch(syncBatch);
             syncBatch.entries().forEach(entry -> {
-                Integer new_entry_id = repo.insertSyncLog(new SpecifySyncLogEntry(entry, newBatchId, null));
+                Long new_entry_id = repo.insertSyncLog(new SpecifySyncLogEntry(entry, newBatchId, null));
                 entries.add(new SpecifySyncLogEntry(entry, newBatchId, new_entry_id));
             });
             return new SpecifyArsSyncBatch(newBatchId, syncBatch.batch_timestamp(), syncBatch.specify_from_timestamp(), syncBatch.specify_to_timestamp(), syncBatch.status(), syncBatch.additional_info(), entries);

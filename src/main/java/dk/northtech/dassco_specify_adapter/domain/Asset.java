@@ -22,7 +22,7 @@ public class Asset {
     public Instant created_date;
     public Instant date_metadata_updated;
     public Instant date_asset_taken;
-    public Instant date_asset_deleted;
+    public Instant date_asset_deleted_ars;
     public Instant date_audited;
     public Instant date_pushed_to_specify;
 
@@ -41,7 +41,6 @@ public class Asset {
     public String pipeline;
     public String error_message;
     public Instant error_timestamp;
-    public DasscoEvent event_name;
     public boolean writeAccess;
 
 
@@ -94,7 +93,7 @@ public class Asset {
                ", created_date=" + created_date +
                ", date_metadata_updated=" + date_metadata_updated +
                ", date_asset_taken=" + date_asset_taken +
-               ", date_asset_deleted=" + date_asset_deleted +
+               ", date_asset_deleted=" + date_asset_deleted_ars +
                ", date_asset_finalised=" + date_asset_finalised +
                ", institution='" + institution + '\'' +
                ", parent_guid='" + parent_guids + '\'' +
@@ -106,7 +105,6 @@ public class Asset {
                ", pipeline='" + pipeline + '\'' +
                ", error_message='" + error_message + '\'' +
                ", error_timestamp=" + error_timestamp +
-               ", event_name=" + event_name +
                ", writeAccess=" + writeAccess +
                ", camera_setting_control='" + camera_setting_control + '\'' +
                ", date_metadata_ingested=" + date_metadata_ingested +

@@ -16,11 +16,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.TemporalAccessor;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -31,6 +29,10 @@ public class MappingService {
     private DateTimeFormatter format = DateTimeFormatter.ISO_LOCAL_DATE.withZone(ZoneOffset.UTC);
     private final DateTimeFormatter specifyDateFormat = DateTimeFormatter.ISO_LOCAL_DATE_TIME
             .withZone(ZoneId.of("Europe/Copenhagen"));
+
+    private static final String NHMD = "NHMD";
+    private static final String VASCULAR_PLANTS_COLLECTION = "NHMD Vascular Plants";
+
     @Inject
     public MappingService(SpecifyMappingsProperties specifyMappingsProperties) {
         this.specifyMappingsProperties = specifyMappingsProperties;
@@ -46,7 +48,7 @@ public class MappingService {
     }
 
     public List<MappedAsset> mapAsset(CollectionObject collectionObject) {
-        String values = readConfigARSToSpecify("NHMD", "NHMD Vascular Plants");
+        String values = readConfigARSToSpecify(NHMD, VASCULAR_PLANTS_COLLECTION);
         values = values.replace("\r\n", "${split}")
                 .replace("\n", "${split}");
         Map<String, String> specifyArsValues = getMappedValues(values);
@@ -70,11 +72,6 @@ public class MappingService {
                 } else {
                     mapValueToAsset(mappedAsset, mappedValue, mappedKey);
                 }
-                Specimen specimen = new Specimen(collectionObject.catalognumber, null, new HashSet<>());
-                AssetSpecimen assetSpecimen = new AssetSpecimen(false, collectionObjectAttachment.id, null, null, mappedAsset.asset.asset_guid);
-                assetSpecimen.specimen = specimen;
-                mappedAsset.asset.asset_specimen.add(assetSpecimen);
-                mappedAsset.specifyCollectionObjectAttachmentId = collectionObjectAttachment.id;
 
 //                List<String> strings = resolveValuePattern(mappedValue);
 //                for (int i = 0; i < strings.size(); i += 2) {
@@ -86,7 +83,25 @@ public class MappingService {
 //                    }
 //                }
             });
-            System.out.println(" Tsest          tezt  " +collectionObject.timestampmodified);
+            if(mappedAsset.asset.status == null) {
+                //TODO what is the status actually
+                mappedAsset.asset.status = "completed";
+            }
+            if(mappedAsset.asset.collection == null) {
+                mappedAsset.asset.collection = VASCULAR_PLANTS_COLLECTION;
+            }
+            if(mappedAsset.asset.institution == null) {
+                mappedAsset.asset.institution = NHMD;
+            }
+            HashSet<String> preparationTypes = new HashSet<>();
+            //TODO Can we get this from specify
+            preparationTypes.add("unknown");
+            Specimen specimen = new Specimen(NHMD, VASCULAR_PLANTS_COLLECTION, collectionObject.catalognumber, "NHMD.NHMD Vascular Plants" + collectionObject.catalognumber, preparationTypes, null, null, List.of());
+            AssetSpecimen assetSpecimen = new AssetSpecimen(false, collectionObjectAttachment.id, "unknown", specimen.specimen_pid(), mappedAsset.asset.asset_guid);
+            assetSpecimen.specimen = specimen;
+            mappedAsset.asset.asset_specimen.add(assetSpecimen);
+            mappedAsset.specifyCollectionObjectAttachmentId = collectionObjectAttachment.id;
+            System.out.println(" Tsest          tezt  " + collectionObject.timestampmodified);
             mappedAsset.SpecifyModifiedDate = Instant.from(specifyDateFormat.parse(collectionObject.timestampmodified));
             mappedAssets.add(mappedAsset);
             mappedAsset.updatedFields.addAll(specifyArsValues.values());
@@ -114,8 +129,8 @@ public class MappingService {
                     mappedAsset.asset.make_public = getSpecifyBooleanValue(specifyProperty, mappedAsset.attachment);
                     break;
 
-                case "${date_asset_deleted}":
-                    mappedAsset.asset.date_asset_deleted = getSpecifyDateValue(specifyProperty, mappedAsset.attachment);
+                case "${date_asset_deleted_ars}":
+                    mappedAsset.asset.date_asset_deleted_ars = getSpecifyDateValue(specifyProperty, mappedAsset.attachment);
                     break;
 
                 case "${date_asset_taken}":
@@ -359,7 +374,7 @@ public class MappingService {
                 .replace("${asset_guid}", asset.asset_guid)
                 .replace("${asset_pid}", asset.asset_pid)
                 .replace("${make_public}", String.valueOf(asset.make_public))
-                .replace("${date_asset_deleted}", formatDate(asset.date_asset_deleted))
+                .replace("${date_asset_deleted_ars}", formatDate(asset.date_asset_deleted_ars))
                 .replace("${date_asset_taken}", formatDate(asset.date_asset_taken));
         if (asset.legality != null) {
             baseAsset = baseAsset.replace("${legality.copyright}", asset.legality.copyright() == null ? "" : asset.legality.copyright())
@@ -383,7 +398,7 @@ public class MappingService {
                 .replace("${status}", asset.status)
                 .replace("${institution}", asset.institution)
                 .replace("${collection}", asset.institution)
-                .replace("${date_asset_deleted}", formatDate(asset.date_asset_deleted))
+                .replace("${date_asset_deleted_ars}", formatDate(asset.date_asset_deleted_ars))
                 .replace("${multi_specimen}", String.valueOf(asset.multi_specimen))
 //                .replace("${internal_status}", String.valueOf(asset.internal_status))
                 .replace("${payload_type}", asset.payload_type == null ? "" : asset.payload_type);

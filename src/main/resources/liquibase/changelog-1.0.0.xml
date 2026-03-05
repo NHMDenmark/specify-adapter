@@ -17,9 +17,9 @@
         </createTable>
         <sql>
             INSERT INTO specify_ars_sync_batch_status(specify_ars_sync_batch_status)
-            VALUES ('PARTIAL_SUCCESS')
+            VALUES ('FAILED_ENTRIES')
                  , ('FAILED')
-                 , ('SUCCESSFUL')
+                 , ('SUCCEEDED')
                  , ('STARTED')
         </sql>
     </changeSet>
