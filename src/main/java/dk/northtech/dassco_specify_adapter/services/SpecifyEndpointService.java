@@ -9,7 +9,6 @@ import dk.northtech.dassco_specify_adapter.assets.SpecifyProperties;
 import dk.northtech.dassco_specify_adapter.domain.*;
 import dk.northtech.dassco_specify_adapter.domain.specify.*;
 import jakarta.inject.Inject;
-import jakarta.ws.rs.core.SecurityContext;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -31,8 +30,6 @@ import java.net.*;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.security.Principal;
-import java.time.LocalDate;
 import java.util.*;
 
 @Service
@@ -84,7 +81,7 @@ public class SpecifyEndpointService {
             //Check if attachment has been deleted outside of ars
             // 5: Get Collection Object (if it exists!):
             CollectionObject collectionObject = getCollectionObject(specifyLogin, assetSpecimen.specimen.barcode());
-            if (assetSpecimen.specify_collection_object_attachment_id != null && (arsAsset.date_asset_deleted != null || assetSpecimen.asset_detached)) {
+            if (assetSpecimen.specify_collection_object_attachment_id != null && (arsAsset.date_asset_deleted_ars != null || assetSpecimen.asset_detached)) {
                 // tombstone
                 logger.info("In tombstone");
 
@@ -132,7 +129,7 @@ public class SpecifyEndpointService {
                         specimenWithIds.add(updated);
                     }
                 }
-            } else if (arsAsset.date_asset_deleted == null && !assetSpecimen.asset_detached) {
+            } else if (arsAsset.date_asset_deleted_ars == null && !assetSpecimen.asset_detached) {
                 // create
                 logger.info("Creating new attachment in specify");
                 collectionObjectAttachment.collectionmemberid = collectionObject.collectionmemberid;

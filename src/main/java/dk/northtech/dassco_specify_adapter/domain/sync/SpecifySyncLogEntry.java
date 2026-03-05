@@ -28,7 +28,22 @@ public record SpecifySyncLogEntry(Long specify_sync_log_id
         this.sync_direction = sync_direction;
     }
 
-    public SpecifySyncLogEntry(SpecifySyncLogEntry entry, Integer specify_ars_sync_batch_id, Integer specify_sync_log_id) {
-        this(entry.specify_sync_log_id(), entry.specify_modified_date, entry.status, entry.specify_collection_object_attachment_id, entry.additional_info,entry.sync_attempt_update_timestamp, specify_ars_sync_batch_id, entry.ars_asset_guid, entry.sync_direction);
+    public SpecifySyncLogEntry(SpecifySyncLogEntry entry, Integer specify_ars_sync_batch_id, Long specify_sync_log_id) {
+        this(specify_sync_log_id, entry.specify_modified_date, entry.status, entry.specify_collection_object_attachment_id, entry.additional_info,entry.sync_attempt_update_timestamp, specify_ars_sync_batch_id, entry.ars_asset_guid, entry.sync_direction);
+    }
+
+    @Override
+    public String toString() {
+        return "SpecifySyncLogEntry{" +
+                "specify_sync_log_id=" + specify_sync_log_id +
+                ", specify_modified_date=" + specify_modified_date +
+                ", status=" + status +
+                ", specify_collection_object_attachment_id=" + specify_collection_object_attachment_id +
+                ", additional_info='" + additional_info + '\'' +
+                ", sync_attempt_update_timestamp=" + sync_attempt_update_timestamp +
+                ", specify_ars_sync_batch_id=" + specify_ars_sync_batch_id +
+                ", ars_asset_guid='" + ars_asset_guid + '\'' +
+                ", sync_direction=" + sync_direction +
+                '}';
     }
 }

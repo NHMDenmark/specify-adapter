@@ -1,8 +1,8 @@
 package dk.northtech.dassco_specify_adapter.domain.sync;
 
 public enum SpecifyArsSyncBatchStatus {
-    PARTIAL_SUCCESS,
+    FAILED_ENTRIES,
     FAILED,
-    SUCCESSFUL,
+    SUCCEEDED,
     STARTED
 }

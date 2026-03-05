@@ -9,11 +9,13 @@ public class SpecifyArsSyncMessage {
     public Asset asset;
     //Those are the fields that have specifymappings
     public Set<String> updatedFields;
+    public Long specifySyncLogId;
     public SpecifyArsSyncMessage() {
     }
 
-    public SpecifyArsSyncMessage(Asset asset, Set<String> updatedFields) {
+    public SpecifyArsSyncMessage(Asset asset, Set<String> updatedFields, Long specifySyncLogId) {
         this.asset = asset;
         this.updatedFields = updatedFields;
+        this.specifySyncLogId = specifySyncLogId;
     }
 }
