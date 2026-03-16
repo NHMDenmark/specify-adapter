@@ -65,7 +65,9 @@ public class MappingService {
                     String[] split = specifyValue.split("\\.");
                     if (split.length == 2) {
                         mappedAsset.asset.asset_guid = split[0];
-                        mappedAsset.asset.file_formats.add(split[1]);
+                        if(!Strings.isNullOrEmpty(split[1])){
+                            mappedAsset.asset.file_formats.add(split[1].toUpperCase());
+                        }
                     } else {
                         mappedAsset.error = "origfilename filename of specify asset did not follow the format ${asset_guid}.${file_format}, was: " + specifyValue;
                     }
@@ -115,7 +117,10 @@ public class MappingService {
 
             switch (arsProperty) {
                 case "${file_format}":
-                    mappedAsset.asset.file_formats.add(getSpecifyStringValue(specifyProperty, mappedAsset.attachment));
+                    String specifyStringValue = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
+                    if(!Strings.isNullOrEmpty(specifyStringValue)) {
+                        mappedAsset.asset.file_formats.add(specifyStringValue.toUpperCase());
+                    }
                     break;
                 case "${asset_guid}":
                     mappedAsset.asset.asset_guid = getSpecifyStringValue(specifyProperty, mappedAsset.attachment);
