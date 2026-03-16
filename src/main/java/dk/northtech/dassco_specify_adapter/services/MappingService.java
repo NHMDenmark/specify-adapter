@@ -32,6 +32,8 @@ public class MappingService {
 
     private static final String NHMD = "NHMD";
     private static final String VASCULAR_PLANTS_COLLECTION = "NHMD Vascular Plants";
+    private static final String SYNC_DEFAULTS_FILENAME = "default.sync-defaults.conf";
+    private static final String SYNC_DEFAULTS_SUFFIX = ".sync-defaults.conf";
 
     @Inject
     public MappingService(SpecifyMappingsProperties specifyMappingsProperties) {
@@ -48,6 +50,7 @@ public class MappingService {
     }
 
     public List<MappedAsset> mapAsset(CollectionObject collectionObject) {
+        SyncDefaults syncDefaults = readSyncDefaults(NHMD, VASCULAR_PLANTS_COLLECTION);
         String values = readConfigARSToSpecify(NHMD, VASCULAR_PLANTS_COLLECTION);
         values = values.replace("\r\n", "${split}")
                 .replace("\n", "${split}");
@@ -85,10 +88,9 @@ public class MappingService {
 //                    }
 //                }
             });
-            if(mappedAsset.asset.status == null) {
-                //TODO what is the status actually
-                mappedAsset.asset.status = "completed";
-            }
+            mappedAsset.asset.pipeline = syncDefaults.pipeline();
+            mappedAsset.asset.status = syncDefaults.status();
+            mappedAsset.asset.workstation = syncDefaults.workstation();
             if(mappedAsset.asset.collection == null) {
                 mappedAsset.asset.collection = VASCULAR_PLANTS_COLLECTION;
             }
@@ -110,6 +112,55 @@ public class MappingService {
         }
 
         return mappedAssets;
+    }
+
+    private SyncDefaults readSyncDefaults(String institution, String collection) {
+        File file = getFile(institution, collection);
+        try {
+            Map<String, String> values = getSimpleMappedValues(Files.readString(Path.of(file.getPath())));
+            String pipeline = values.get("pipeline");
+            String status = values.get("status");
+            String workstation = values.get("workstation");
+            if (Strings.isNullOrEmpty(pipeline) || Strings.isNullOrEmpty(status) || Strings.isNullOrEmpty(workstation)) {
+                throw new SpecifyAdapterException("Sync defaults must define pipeline, status and workstation in: " + file, AcknowledgeStatus.MAPPING_ERROR);
+            }
+            return new SyncDefaults(pipeline, status, workstation);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private File getFile(String institution, String collection) {
+        File institutionDirectory = new File(specifyMappingsProperties.location() + institution);
+        File institutionDefaultFile = new File(institutionDirectory, SYNC_DEFAULTS_FILENAME);
+        if (!institutionDefaultFile.exists()) {
+            throw new SpecifyAdapterException("No sync defaults found for institution: " + institution + " expected file: " + institutionDefaultFile, AcknowledgeStatus.MAPPING_ERROR);
+        }
+
+        File collectionSpecificDefaults = new File(institutionDirectory, collection + SYNC_DEFAULTS_SUFFIX);
+        File file = collectionSpecificDefaults.exists() ? collectionSpecificDefaults : institutionDefaultFile;
+        return file;
+    }
+
+    private Map<String, String> getSimpleMappedValues(String values) {
+        Map<String, String> mapped = new HashMap<>();
+        for (String rawLine : values.split("\\r?\\n")) {
+            String line = rawLine.trim();
+            if (line.isEmpty() || line.startsWith("#")) {
+                continue;
+            }
+            int index = line.indexOf('=');
+            if (index == -1) {
+                throw new SpecifyAdapterException("Mapping configuration error, missing equals, line is " + line, AcknowledgeStatus.MAPPING_ERROR);
+            }
+            String key = line.substring(0, index).trim();
+            String value = line.substring(index + 1).trim();
+            mapped.put(key, value);
+        }
+        return mapped;
+    }
+
+    private record SyncDefaults(String pipeline, String status, String workstation) {
     }
 
     public void mapValueToAsset(MappedAsset mappedAsset, String arsProperty, String specifyProperty) {

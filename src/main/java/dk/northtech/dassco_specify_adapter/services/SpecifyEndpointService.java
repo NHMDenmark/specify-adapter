@@ -537,10 +537,24 @@ public class SpecifyEndpointService {
         }
     }
 
-    public List<CollectionObject> searchSpecify() {
-        List<CollectionObject> collectionObjects = new ArrayList<>();
+    public <T> T getSpecifyObject(SpecifyCollectionLogin login, String specifyLocation, Class<T> clazz) {
+        HttpClient httpClient = HttpClient.newBuilder().build();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(this.specifyProperties.rootUrl() + specifyLocation))
+                .header("Cookie", "collection=" + login.collection() + ";csrftoken=" + login.csrftoken() + ";sessionid=" + login.sessionid())
+                .header("X-CSRFToken", login.csrftoken())
+                .GET()
+                .build();
 
-        return collectionObjects;
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                throw new RuntimeException("There was an error. Status: " + response.statusCode() + ". Error: " + response.body());
+            }
+            return mapper.readValue(response.body(), clazz);
+        } catch (IOException | InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
 }

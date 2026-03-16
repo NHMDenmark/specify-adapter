@@ -5,7 +5,11 @@ import dk.northtech.dassco_specify_adapter.domain.*;
 import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObject;
 import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObjectAttachment;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -18,6 +22,9 @@ import java.util.List;
 import static com.google.common.truth.Truth.assertThat;
 
 public class MappingServiceTest {
+
+    @TempDir
+    Path tempDir;
 
     private static String default_conf = """
             #Always take the first entry in file_formats
@@ -35,20 +42,10 @@ public class MappingServiceTest {
             remarks=${specify_attachment_remarks}
             title=${specify_attachment_title}
             """;
-//    @Test
-//    void mapAsset() {
-//        Asset testAsset = getTestAsset();
-//        MappingService mappingService = new MappingService(new SpecifyMappingsProperties("./mappings/"));
-//        CollectionObjectAttachment collectionObjectAttachment = mappingService.getAttachment(testAsset);
-//        Attachment attachment = collectionObjectAttachment.attachment;
-//        assertThat(attachment).isNotNull();
-//        assertThat(attachment.origfilename).isEqualTo("test-guid-1.jpeg");
-//        assertThat(attachment.attachmentlocation).isEqualTo("test-guid-1_pid");
-//        assertThat(attachment.copyrightdate).isEqualTo("2025-01-12");
-//    }
+
 
     @Test
-    void mapAssetNewLines() {
+    void mapAssetNewLines() throws IOException {
         Asset testAsset = getTestAsset();
         testAsset.legality = new Legality(null, "copyright", "loicense", "credz");
         testAsset.specify_attachment_remarks = "remarkable\n remark";
@@ -56,7 +53,22 @@ public class MappingServiceTest {
         testAsset.make_public = true;
 //        testAsset.date_asset_deleted = Instant.parse("2023-07-17T09:01:51.312Z");
         testAsset.date_asset_taken = Instant.parse("2023-07-24T09:01:51.312Z");
-        MappingService mappingService = new MappingService(new SpecifyMappingsProperties("./mappings/"));
+        Path mappingsPath = createSyncMappingDirectory();
+        Files.writeString(
+                mappingsPath.resolve("NHMD/default.conf"),
+                "origfilename=${asset_guid}.${file_format}\n" +
+                "attachmentlocation=${asset_pid}\n" +
+                "copyrightdate=${date_asset_deleted_ars}\n" +
+                "filecreateddate=${date_asset_taken}\n" +
+                "mimetype=${file_format}\n" +
+                "copyrightholder=${legality.copyright}\n" +
+                "credit=${legality.credit}\n" +
+                "license=${legality.license}\n" +
+                "ispublic=${make_public}\n" +
+                "remarks=${specify_attachment_remarks}\n" +
+                "title=${specify_attachment_title}\n"
+        );
+        MappingService mappingService = new MappingService(new SpecifyMappingsProperties(withTrailingSlash(mappingsPath)));
         CollectionObjectAttachment collectionObjectAttachment = mappingService.getAttachment(testAsset);
         Attachment attachment = collectionObjectAttachment.attachment;
         assertThat(attachment).isNotNull();
@@ -104,52 +116,110 @@ public class MappingServiceTest {
     }
 
     @Test
-    void mapAsset() {
+    void mapAssetUsesInstitutionDefaults() throws IOException {
         Attachment attachment = new Attachment();
-        MappingService mappingService = new MappingService(new SpecifyMappingsProperties("./mappings/"));
+        attachment.attachmentlocation = "guid-from-attachment";
+        attachment.title = "pipeline-from-attachment";
+        attachment.remarks = "status-from-attachment";
+        attachment.origfilename = "workstation-from-attachment";
+
+        Path mappingsPath = createSyncMappingDirectory();
+        writeCollectionMappingFile(mappingsPath);
+        writeSyncDefaultsFile(mappingsPath, "pipeline=PIPE_DEFAULT\nstatus=STATUS_DEFAULT\nworkstation=WORK_DEFAULT\n");
+
+        MappingService mappingService = new MappingService(new SpecifyMappingsProperties(withTrailingSlash(mappingsPath)));
         CollectionObjectAttachment collectionObjectAttachment = new CollectionObjectAttachment();
         collectionObjectAttachment.attachment = attachment;
         CollectionObject collectionObject = new CollectionObject();
         collectionObject.collectionobjectattachments = List.of(collectionObjectAttachment);
-        mappingService.mapAsset(collectionObject);
+        collectionObject.catalognumber = "NHMD0001";
+        collectionObject.timestampmodified = "2026-02-03T05:09:28";
 
+        var mapped = mappingService.mapAsset(collectionObject);
 
+        assertThat(mapped).hasSize(1);
+        assertThat(mapped.getFirst().asset.pipeline).isEqualTo("PIPE_DEFAULT");
+        assertThat(mapped.getFirst().asset.status).isEqualTo("STATUS_DEFAULT");
+        assertThat(mapped.getFirst().asset.workstation).isEqualTo("WORK_DEFAULT");
     }
 
     @Test
-    void testtest() {
-        List<String> valueToken = new ArrayList<>();
-        List<String> constantToken = new ArrayList<>();
-        String example = "asdasdff${asset_guid}adsf.${file_format}${asdf}";
-        int index = 0;
+    void mapAssetUsesCollectionSpecificSyncDefaultsWhenPresent() throws IOException {
+        Attachment attachment = new Attachment();
+        attachment.attachmentlocation = "guid-from-attachment";
+        attachment.title = "pipeline-from-attachment";
+        attachment.remarks = "status-from-attachment";
+        attachment.origfilename = "workstation-from-attachment";
 
-        int attempts = 0;
-        while (!example.isEmpty()) {
-            int tokenStart = example.indexOf("${");
-            int tokenEnd = example.indexOf("}");
-            if (tokenStart == -1) {
-                if (!example.isEmpty()) {
-                    constantToken.add(example);
-                }
-                break;
-            }
-            if(tokenStart != 0) {
-                constantToken.add(example.substring(0, tokenStart));
-            }
-            valueToken.add(example.substring(tokenStart, tokenEnd + 1));
-            example = example.substring(tokenEnd + 1);
+        Path mappingsPath = createSyncMappingDirectory();
+        writeCollectionMappingFile(mappingsPath);
+        writeSyncDefaultsFile(mappingsPath, "pipeline=PIPE_DEFAULT\nstatus=STATUS_DEFAULT\nworkstation=WORK_DEFAULT\n");
+        Files.writeString(mappingsPath.resolve("NHMD/NHMD Vascular Plants.sync-defaults.conf"), "pipeline=PIPE_COLLECTION\nstatus=STATUS_COLLECTION\nworkstation=WORK_COLLECTION\n");
 
-            System.out.println(example);
-            System.out.println(index);
-            System.out.println("tokenStart: " + tokenStart);
-            System.out.println("tokenend" + tokenEnd);
-            index = tokenEnd;
-            attempts++;
-        }
-        System.out.println(valueToken);
-        System.out.println(constantToken);
+        MappingService mappingService = new MappingService(new SpecifyMappingsProperties(withTrailingSlash(mappingsPath)));
+        CollectionObjectAttachment collectionObjectAttachment = new CollectionObjectAttachment();
+        collectionObjectAttachment.attachment = attachment;
+        CollectionObject collectionObject = new CollectionObject();
+        collectionObject.collectionobjectattachments = List.of(collectionObjectAttachment);
+        collectionObject.catalognumber = "NHMD0002";
+        collectionObject.timestampmodified = "2026-02-03T05:09:28";
 
+        var mapped = mappingService.mapAsset(collectionObject);
+
+        assertThat(mapped).hasSize(1);
+        assertThat(mapped.getFirst().asset.pipeline).isEqualTo("PIPE_COLLECTION");
+        assertThat(mapped.getFirst().asset.status).isEqualTo("STATUS_COLLECTION");
+        assertThat(mapped.getFirst().asset.workstation).isEqualTo("WORK_COLLECTION");
     }
+
+    @Test
+    void mapAssetFailsWhenInstitutionDefaultSyncDefaultsIsMissing() throws IOException {
+        Path mappingsPath = createSyncMappingDirectory();
+        writeCollectionMappingFile(mappingsPath);
+
+        MappingService mappingService = new MappingService(new SpecifyMappingsProperties(withTrailingSlash(mappingsPath)));
+
+        Attachment attachment = new Attachment();
+        attachment.attachmentlocation = "guid-from-attachment";
+        CollectionObjectAttachment collectionObjectAttachment = new CollectionObjectAttachment();
+        collectionObjectAttachment.attachment = attachment;
+        CollectionObject collectionObject = new CollectionObject();
+        collectionObject.collectionobjectattachments = List.of(collectionObjectAttachment);
+        collectionObject.catalognumber = "NHMD0003";
+        collectionObject.timestampmodified = "2026-02-03T05:09:28";
+
+        Throwable thrown = org.junit.jupiter.api.Assertions.assertThrows(SpecifyAdapterException.class, () -> mappingService.mapAsset(collectionObject));
+        assertThat(thrown).hasMessageThat().contains("No sync defaults found for institution: NHMD");
+    }
+
+    private Path createSyncMappingDirectory() throws IOException {
+        Path mappingsPath = tempDir.resolve("mappings");
+        Files.createDirectories(mappingsPath.resolve("NHMD"));
+        return mappingsPath;
+    }
+
+    private void writeCollectionMappingFile(Path mappingsPath) throws IOException {
+        Files.writeString(
+                mappingsPath.resolve("NHMD/default.conf"),
+                "attachmentlocation=${asset_guid}\n" +
+                "title=${pipeline}\n" +
+                "remarks=${status}\n" +
+                "origfilename=${workstation}\n"
+        );
+    }
+
+    private void writeSyncDefaultsFile(Path mappingsPath, String values) throws IOException {
+        Files.writeString(mappingsPath.resolve("NHMD/default.sync-defaults.conf"), values);
+    }
+
+    private String withTrailingSlash(Path path) {
+        String value = path.toString().replace('\\', '/');
+        if (value.endsWith("/")) {
+            return value;
+        }
+        return value + "/";
+    }
+
 
     Attachment getTestAttachment() {
         Attachment attachment = new Attachment();
