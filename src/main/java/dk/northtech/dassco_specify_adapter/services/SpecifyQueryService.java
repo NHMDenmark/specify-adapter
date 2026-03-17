@@ -8,6 +8,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import dk.northtech.dassco_specify_adapter.assets.SpecifyProperties;
 import dk.northtech.dassco_specify_adapter.domain.*;
 import dk.northtech.dassco_specify_adapter.domain.specify.*;
+import dk.northtech.dassco_specify_adapter.domain.sync.SpecifyAttachmentContext;
 import jakarta.inject.Inject;
 import jakarta.validation.constraints.NotNull;
 import org.slf4j.Logger;
@@ -21,8 +22,14 @@ import java.net.*;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -37,6 +44,10 @@ public class SpecifyQueryService {
 
     private static final Logger logger = LoggerFactory.getLogger(SpecifyQueryService.class);
     private static final String VASCULAR_PLANTS_COLLECTION = "NHMD Vascular Plants";
+    private static final int ATTACHMENT_PAGE_SIZE = 20;
+    private static final int MAX_UPDATED_ATTACHMENTS = 100;
+    private static final DateTimeFormatter SPECIFY_DATE_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
+    private static final ZoneId SPECIFY_TIMEZONE = ZoneId.of("Europe/Copenhagen");
     @Inject
     public SpecifyQueryService(SpecifyEndpointService specifyEndpointService, SpecifyProperties specifyProperties) {
         this.specifyEndpointService = specifyEndpointService;
@@ -78,6 +89,119 @@ public class SpecifyQueryService {
             }
         });
         return foundCollectionObjects;
+    }
+
+    public List<SpecifyAttachmentContext> findUpdatedAttachmentContextsSince(@NotNull Instant lastSyncTimestamp) {
+        LoginInfo loginInfo = specifyEndpointService.login();
+        int specifyCollectionId;
+        if (loginInfo.collections.containsKey(VASCULAR_PLANTS_COLLECTION)) {
+            specifyCollectionId = loginInfo.collections.get(VASCULAR_PLANTS_COLLECTION);
+        } else {
+            throw new SpecifyAdapterException("No collection was found in specify", AcknowledgeStatus.MAPPING_ERROR);
+        }
+
+        SpecifyCollectionLogin specifyLogin = specifyEndpointService.loginToCollection(specifyCollectionId, loginInfo.csrftoken);
+        LocalDateTime lastSyncLocal = LocalDateTime.ofInstant(lastSyncTimestamp, SPECIFY_TIMEZONE);
+        List<SpecifyAttachmentContext> contexts = new ArrayList<>();
+        Map<String, Agent> agentByUri = new HashMap<>();
+        Map<String, PrepType> prepTypeByUri = new HashMap<>();
+        Map<Integer, PrepType> prepTypeByCollectionObjectId = new HashMap<>();
+        Map<String, CollectionObject> collectionObjectByUri = new HashMap<>();
+
+        int offset = 0;
+        int updatedAttachmentCount = 0;
+        while (true) {
+            AttachmentSearchResult result = specifyEndpointService.getSpecifyObject(
+                    specifyLogin,
+                    "/api/specify/attachment/?domainfilter=true&offset=" + offset + "&orderby=-timestampmodified",
+                    AttachmentSearchResult.class
+            );
+            if (result == null || result.objects == null || result.objects.isEmpty()) {
+                break;
+            }
+
+            boolean allAfterLastSync = true;
+            for (Attachment attachment : result.objects) {
+                if (!isAfterLastSync(attachment.timestampmodified, lastSyncLocal)) {
+                    allAfterLastSync = false;
+                    continue;
+                }
+
+                updatedAttachmentCount++;
+                if (updatedAttachmentCount > MAX_UPDATED_ATTACHMENTS) {
+                    throw new RuntimeException("Found more than " + MAX_UPDATED_ATTACHMENTS + " attachments updated since last sync");
+                }
+
+                Agent modifiedByAgent = getAgent(specifyLogin, attachment.modifiedbyagent, agentByUri);
+                CollectionObjectAttachmentSearchResult collectionObjectAttachmentResult = getCollectionObjectAttachments(specifyLogin, attachment.collectionobjectattachments);
+
+                if (collectionObjectAttachmentResult == null || collectionObjectAttachmentResult.objects == null || collectionObjectAttachmentResult.objects.isEmpty()) {
+                    continue;
+                }
+
+                for (CollectionObjectAttachment collectionObjectAttachment : collectionObjectAttachmentResult.objects) {
+                    if (collectionObjectAttachment.collectionobject == null) {
+                        continue;
+                    }
+                    CollectionObject collectionObject = collectionObjectByUri.computeIfAbsent(
+                            collectionObjectAttachment.collectionobject,
+                            uri -> specifyEndpointService.getSpecifyObject(specifyLogin, uri, CollectionObject.class)
+                    );
+                    PrepType prepType = prepTypeByCollectionObjectId.computeIfAbsent(
+                            collectionObject.id,
+                            id -> getPrepTypeForCollectionObject(specifyLogin, id, prepTypeByUri)
+                    );
+                    contexts.add(new SpecifyAttachmentContext(attachment, modifiedByAgent, collectionObject, prepType, collectionObjectAttachment.id));
+                }
+            }
+
+            if (!allAfterLastSync || result.objects.size() < ATTACHMENT_PAGE_SIZE) {
+                break;
+            }
+            offset += ATTACHMENT_PAGE_SIZE;
+        }
+        return contexts;
+    }
+
+    private boolean isAfterLastSync(String specifyTimestamp, LocalDateTime lastSyncLocal) {
+        if (specifyTimestamp == null) {
+            return false;
+        }
+        LocalDateTime modified = LocalDateTime.parse(specifyTimestamp, SPECIFY_DATE_FORMAT);
+        return modified.isAfter(lastSyncLocal);
+    }
+
+    private Agent getAgent(SpecifyCollectionLogin login, String agentUri, Map<String, Agent> agentByUri) {
+        if (agentUri == null) {
+            return null;
+        }
+        return agentByUri.computeIfAbsent(agentUri, uri -> specifyEndpointService.getSpecifyObject(login, uri, Agent.class));
+    }
+
+    private CollectionObjectAttachmentSearchResult getCollectionObjectAttachments(SpecifyCollectionLogin login, String collectionObjectAttachmentsUri) {
+        if (collectionObjectAttachmentsUri == null) {
+            return null;
+        }
+        return specifyEndpointService.getSpecifyObject(login, collectionObjectAttachmentsUri, CollectionObjectAttachmentSearchResult.class);
+    }
+
+    private PrepType getPrepTypeForCollectionObject(SpecifyCollectionLogin login, Integer collectionObjectId, Map<String, PrepType> prepTypeByUri) {
+        if (collectionObjectId == null) {
+            return null;
+        }
+        PreparationSearchResult preparationSearchResult = specifyEndpointService.getSpecifyObject(
+                login,
+                "/api/specify/preparation/?collectionobject=" + collectionObjectId,
+                PreparationSearchResult.class
+        );
+        if (preparationSearchResult == null || preparationSearchResult.objects == null || preparationSearchResult.objects.isEmpty()) {
+            return null;
+        }
+        String prepTypeUri = preparationSearchResult.objects.getFirst().preptype;
+        if (prepTypeUri == null) {
+            return null;
+        }
+        return prepTypeByUri.computeIfAbsent(prepTypeUri, uri -> specifyEndpointService.getSpecifyObject(login, uri, PrepType.class));
     }
 
 

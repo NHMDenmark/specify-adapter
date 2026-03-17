@@ -6,6 +6,7 @@ import dk.northtech.dassco_specify_adapter.domain.*;
 import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObject;
 import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObjectAttachment;
 import dk.northtech.dassco_specify_adapter.domain.sync.MappedAsset;
+import dk.northtech.dassco_specify_adapter.domain.sync.SpecifyAttachmentContext;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -112,6 +113,78 @@ public class MappingService {
         }
 
         return mappedAssets;
+    }
+
+    public MappedAsset mapAsset(SpecifyAttachmentContext context) {
+        String preparationType = "unknown";
+        if (context.prepType != null && !Strings.isNullOrEmpty(context.prepType.name)) {
+            preparationType = context.prepType.name;
+        }
+        return mapAsset(context.collectionObject, context.attachment, context.collectionObjectAttachmentId, preparationType);
+    }
+
+    private MappedAsset mapAsset(CollectionObject collectionObject, Attachment attachment, Long collectionObjectAttachmentId, String preparationType) {
+        SyncDefaults syncDefaults = readSyncDefaults(NHMD, VASCULAR_PLANTS_COLLECTION);
+        String values = readConfigARSToSpecify(NHMD, VASCULAR_PLANTS_COLLECTION);
+        values = values.replace("\r\n", "${split}")
+                .replace("\n", "${split}");
+        Map<String, String> specifyArsValues = getMappedValues(values);
+
+        MappedAsset mappedAsset = new MappedAsset();
+        mappedAsset.asset = new Asset();
+        mappedAsset.attachment = attachment;
+
+        specifyArsValues.forEach((mappedKey, mappedValue) -> {
+            if (mappedValue.equals("${asset_guid}.${file_format}")) {
+                String specifyValue = getSpecifyStringValue(mappedKey, mappedAsset.attachment);
+                String[] split = specifyValue.split("\\.");
+                if (split.length == 2) {
+                    mappedAsset.asset.asset_guid = split[0];
+                    if (!Strings.isNullOrEmpty(split[1])) {
+                        mappedAsset.asset.file_formats.add(split[1].toUpperCase());
+                    }
+                } else {
+                    mappedAsset.error = "origfilename filename of specify asset did not follow the format ${asset_guid}.${file_format}, was: " + specifyValue;
+                }
+            } else {
+                mapValueToAsset(mappedAsset, mappedValue, mappedKey);
+            }
+        });
+
+        mappedAsset.asset.pipeline = syncDefaults.pipeline();
+        mappedAsset.asset.status = syncDefaults.status();
+        mappedAsset.asset.workstation = syncDefaults.workstation();
+
+        if (mappedAsset.asset.collection == null) {
+            mappedAsset.asset.collection = VASCULAR_PLANTS_COLLECTION;
+        }
+        if (mappedAsset.asset.institution == null) {
+            mappedAsset.asset.institution = NHMD;
+        }
+
+        HashSet<String> preparationTypes = new HashSet<>();
+        preparationTypes.add(preparationType);
+        Specimen specimen = new Specimen(
+                NHMD,
+                VASCULAR_PLANTS_COLLECTION,
+                collectionObject.catalognumber,
+                "NHMD.NHMD Vascular Plants" + collectionObject.catalognumber,
+                preparationTypes,
+                null,
+                null,
+                List.of()
+        );
+        AssetSpecimen assetSpecimen = new AssetSpecimen(false, collectionObjectAttachmentId, preparationType, specimen.specimen_pid(), mappedAsset.asset.asset_guid);
+        assetSpecimen.specimen = specimen;
+        mappedAsset.asset.asset_specimen.add(assetSpecimen);
+
+        mappedAsset.specifyCollectionObjectAttachmentId = collectionObjectAttachmentId;
+        String timestampToParse = attachment.timestampmodified != null ? attachment.timestampmodified : collectionObject.timestampmodified;
+        if (timestampToParse != null) {
+            mappedAsset.SpecifyModifiedDate = Instant.from(specifyDateFormat.parse(timestampToParse));
+        }
+        mappedAsset.updatedFields.addAll(specifyArsValues.values());
+        return mappedAsset;
     }
 
     private SyncDefaults readSyncDefaults(String institution, String collection) {
