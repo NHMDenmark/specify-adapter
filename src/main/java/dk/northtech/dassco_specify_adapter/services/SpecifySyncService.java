@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import dk.northtech.dassco_specify_adapter.AMQP.QueueBroadcaster;
 import dk.northtech.dassco_specify_adapter.domain.*;
-import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObject;
 import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObjectAttachment;
 import dk.northtech.dassco_specify_adapter.domain.sync.*;
 import dk.northtech.dassco_specify_adapter.repository.SpecifyArsSyncRepository;
@@ -79,9 +78,9 @@ public class SpecifySyncService {
         }
         specifyFromDate = specifyDateFormat.format(fromInstant);
         try {
-            List<CollectionObject> collectionObjectsToSync = specifyQueryService.findCollectionObjectsToSync(specifyFromDate, specifyToDate);
+            List<SpecifyAttachmentContext> attachmentContextsToSync = specifyQueryService.findUpdatedAttachmentContextsSince(fromInstant);
             List<SpecifySyncLogEntry> specifySyncLogEntries = new ArrayList<>();
-            log.info("Found {} collectionObjects to sync", collectionObjectsToSync.size());
+            log.info("Found {} attachment contexts to sync", attachmentContextsToSync.size());
 
 
 //            List<MappedAsset> mappedAssets = collectionObjectsToSync.stream()
@@ -92,8 +91,8 @@ public class SpecifySyncService {
             jdbi.inTransaction(handle -> {
                 SpecifyArsSyncRepository repository = handle.attach(SpecifyArsSyncRepository.class);
                 Integer batchId = repository.createNewBatch(new SpecifyArsSyncBatch(null, now, finalFromInsant, now, SpecifyArsSyncBatchStatus.STARTED, null, specifySyncLogEntries));
-                collectionObjectsToSync.stream()
-                        .flatMap(collectionObject -> mappingService.mapAsset(collectionObject).stream()).forEach(
+                attachmentContextsToSync.stream()
+                        .map(mappingService::mapAsset).forEach(
                 mappedAsset -> {
                     SpecifySyncStatus specifySyncStatus = mappedAsset.error == null ? SpecifySyncStatus.STARTED : SpecifySyncStatus.FAILED;
                     SpecifySyncLogEntry specifySyncLogEntry = new SpecifySyncLogEntry(null
