@@ -116,14 +116,22 @@ public class MappingService {
     }
 
     public MappedAsset mapAsset(SpecifyAttachmentContext context) {
-        String preparationType = "unknown";
-        if (context.prepType != null && !Strings.isNullOrEmpty(context.prepType.name)) {
-            preparationType = context.prepType.name;
+        HashSet<String> preparationTypes = new HashSet<>();
+        if (context.prepTypes != null) {
+            context.prepTypes.forEach(prepType -> {
+                if (prepType != null && !Strings.isNullOrEmpty(prepType.name)) {
+                    preparationTypes.add(prepType.name);
+                }
+            });
         }
-        return mapAsset(context.collectionObject, context.attachment, context.collectionObjectAttachmentId, preparationType);
+        if (preparationTypes.isEmpty()) {
+            preparationTypes.add("unknown");
+        }
+        String primaryPreparationType = preparationTypes.iterator().next();
+        return mapAsset(context.collectionObject, context.attachment, context.collectionObjectAttachmentId, primaryPreparationType, preparationTypes);
     }
 
-    private MappedAsset mapAsset(CollectionObject collectionObject, Attachment attachment, Long collectionObjectAttachmentId, String preparationType) {
+    private MappedAsset mapAsset(CollectionObject collectionObject, Attachment attachment, Long collectionObjectAttachmentId, String primaryPreparationType, HashSet<String> preparationTypes) {
         SyncDefaults syncDefaults = readSyncDefaults(NHMD, VASCULAR_PLANTS_COLLECTION);
         String values = readConfigARSToSpecify(NHMD, VASCULAR_PLANTS_COLLECTION);
         values = values.replace("\r\n", "${split}")
@@ -162,8 +170,6 @@ public class MappingService {
             mappedAsset.asset.institution = NHMD;
         }
 
-        HashSet<String> preparationTypes = new HashSet<>();
-        preparationTypes.add(preparationType);
         Specimen specimen = new Specimen(
                 NHMD,
                 VASCULAR_PLANTS_COLLECTION,
@@ -174,7 +180,7 @@ public class MappingService {
                 null,
                 List.of()
         );
-        AssetSpecimen assetSpecimen = new AssetSpecimen(false, collectionObjectAttachmentId, preparationType, specimen.specimen_pid(), mappedAsset.asset.asset_guid);
+        AssetSpecimen assetSpecimen = new AssetSpecimen(false, collectionObjectAttachmentId, primaryPreparationType, specimen.specimen_pid(), mappedAsset.asset.asset_guid);
         assetSpecimen.specimen = specimen;
         mappedAsset.asset.asset_specimen.add(assetSpecimen);
 

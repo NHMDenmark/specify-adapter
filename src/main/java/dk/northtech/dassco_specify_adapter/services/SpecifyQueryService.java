@@ -105,7 +105,7 @@ public class SpecifyQueryService {
         List<SpecifyAttachmentContext> contexts = new ArrayList<>();
         Map<String, Agent> agentByUri = new HashMap<>();
         Map<String, PrepType> prepTypeByUri = new HashMap<>();
-        Map<Integer, PrepType> prepTypeByCollectionObjectId = new HashMap<>();
+        Map<Integer, List<PrepType>> prepTypesByCollectionObjectId = new HashMap<>();
         Map<String, CollectionObject> collectionObjectByUri = new HashMap<>();
 
         int offset = 0;
@@ -147,11 +147,11 @@ public class SpecifyQueryService {
                             collectionObjectAttachment.collectionobject,
                             uri -> specifyEndpointService.getSpecifyObject(specifyLogin, uri, CollectionObject.class)
                     );
-                    PrepType prepType = prepTypeByCollectionObjectId.computeIfAbsent(
+                    List<PrepType> prepTypes = prepTypesByCollectionObjectId.computeIfAbsent(
                             collectionObject.id,
-                            id -> getPrepTypeForCollectionObject(specifyLogin, id, prepTypeByUri)
+                            id -> getPrepTypesForCollectionObject(collectionObject, specifyLogin, prepTypeByUri)
                     );
-                    contexts.add(new SpecifyAttachmentContext(attachment, modifiedByAgent, collectionObject, prepType, collectionObjectAttachment.id));
+                    contexts.add(new SpecifyAttachmentContext(attachment, modifiedByAgent, collectionObject, prepTypes, collectionObjectAttachment.id));
                 }
             }
 
@@ -185,23 +185,22 @@ public class SpecifyQueryService {
         return specifyEndpointService.getSpecifyObject(login, collectionObjectAttachmentsUri, CollectionObjectAttachmentSearchResult.class);
     }
 
-    private PrepType getPrepTypeForCollectionObject(SpecifyCollectionLogin login, Integer collectionObjectId, Map<String, PrepType> prepTypeByUri) {
-        if (collectionObjectId == null) {
-            return null;
+    private List<PrepType> getPrepTypesForCollectionObject(CollectionObject collectionObject, SpecifyCollectionLogin login, Map<String, PrepType> prepTypeByUri) {
+        List<PrepType> prepTypes = new ArrayList<>();
+        if (collectionObject.preparations == null || collectionObject.preparations.isEmpty()) {
+            return prepTypes;
         }
-        PreparationSearchResult preparationSearchResult = specifyEndpointService.getSpecifyObject(
-                login,
-                "/api/specify/preparation/?collectionobject=" + collectionObjectId,
-                PreparationSearchResult.class
-        );
-        if (preparationSearchResult == null || preparationSearchResult.objects == null || preparationSearchResult.objects.isEmpty()) {
-            return null;
+        for (Preparation preparation : collectionObject.preparations) {
+            if (preparation.preptype == null) {
+                continue;
+            }
+            PrepType prepType = prepTypeByUri.computeIfAbsent(
+                    preparation.preptype,
+                    uri -> specifyEndpointService.getSpecifyObject(login, uri, PrepType.class)
+            );
+            prepTypes.add(prepType);
         }
-        String prepTypeUri = preparationSearchResult.objects.getFirst().preptype;
-        if (prepTypeUri == null) {
-            return null;
-        }
-        return prepTypeByUri.computeIfAbsent(prepTypeUri, uri -> specifyEndpointService.getSpecifyObject(login, uri, PrepType.class));
+        return prepTypes;
     }
 
 
