@@ -5,18 +5,20 @@ import dk.northtech.dassco_specify_adapter.domain.specify.Agent;
 import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObject;
 import dk.northtech.dassco_specify_adapter.domain.specify.PrepType;
 
+import java.util.List;
+
 public class SpecifyAttachmentContext {
     public Attachment attachment;
     public Agent modifiedByAgent;
     public CollectionObject collectionObject;
-    public PrepType prepType;
+    public List<PrepType> prepTypes;
     public Long collectionObjectAttachmentId;
 
-    public SpecifyAttachmentContext(Attachment attachment, Agent modifiedByAgent, CollectionObject collectionObject, PrepType prepType, Long collectionObjectAttachmentId) {
+    public SpecifyAttachmentContext(Attachment attachment, Agent modifiedByAgent, CollectionObject collectionObject, List<PrepType> prepTypes, Long collectionObjectAttachmentId) {
         this.attachment = attachment;
         this.modifiedByAgent = modifiedByAgent;
         this.collectionObject = collectionObject;
-        this.prepType = prepType;
+        this.prepTypes = prepTypes;
         this.collectionObjectAttachmentId = collectionObjectAttachmentId;
     }
 
@@ -26,7 +28,7 @@ public class SpecifyAttachmentContext {
                 "attachment=" + attachment +
                 ", modifiedByAgent=" + modifiedByAgent +
                 ", collectionObject=" + collectionObject +
-                ", prepType=" + prepType +
+                ", prepTypes=" + prepTypes +
                 ", collectionObjectAttachmentId=" + collectionObjectAttachmentId +
                 '}';
     }

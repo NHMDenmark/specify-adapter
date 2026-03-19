@@ -5,6 +5,7 @@ import java.util.List;
 public class CollectionObject {
     public int id;
     public List<CollectionObjectAttachment> collectionobjectattachments;
+    public List<Preparation> preparations;
     public String altcatalognumber;
     public String availability;
     public String catalognumber;
