@@ -89,6 +89,8 @@ public class MappingService {
 //                    }
 //                }
             });
+
+            // Handle default values
             mappedAsset.asset.pipeline = syncDefaults.pipeline();
             mappedAsset.asset.status = syncDefaults.status();
             mappedAsset.asset.workstation = syncDefaults.workstation();

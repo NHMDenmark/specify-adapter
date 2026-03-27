@@ -50,8 +50,29 @@ public class SpecifySyncService {
             try {
                 CollectionObjectAttachment attachment = mappingService.getAttachment(arsUpdate.asset);
                 List<AssetSpecimen> specimen = specifyEndpointService.pushImageToSpecify(attachment, arsUpdate.asset, arsUpdate.deleteAttachment);
+                Instant syncTimestamp = Instant.now();
+                jdbi.withHandle(handle -> {
+                    SpecifyArsSyncRepository repository = handle.attach(SpecifyArsSyncRepository.class);
+                    for (AssetSpecimen specimenEntry : specimen) {
+                        if (specimenEntry.specify_collection_object_attachment_id == null) {
+                            continue;
+                        }
+                        repository.insertSyncLog(new SpecifySyncLogEntry(
+                                null,
+                                syncTimestamp,
+                                SpecifySyncStatus.SUCCEEDED,
+                                specimenEntry.specify_collection_object_attachment_id,
+                                null,
+                                syncTimestamp,
+                                null,
+                                arsUpdate.asset.asset_guid,
+                                SyncDirection.ARS_TO_SPECIFY
+                        ));
+                    }
+                    return handle;
+                });
 //                2026-02-03T05:09:29
-                queueBroadcaster.sendMessage(new Acknowledge(arsUpdate.asset.asset_guid, AcknowledgeStatus.SUCCESS, null, Instant.now(), specimen));
+                queueBroadcaster.sendMessage(new Acknowledge(arsUpdate.asset.asset_guid, AcknowledgeStatus.SUCCESS, null, syncTimestamp, specimen));
             } catch (SpecifyAdapterException spx) {
                 queueBroadcaster.sendMessage(new Acknowledge(arsUpdate.asset.asset_guid, spx.status(), spx.getMessage(), Instant.now(), null));
             } catch (Exception ex) {
