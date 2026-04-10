@@ -10,6 +10,7 @@ import org.jdbi.v3.sqlobject.statement.GetGeneratedKeys;
 import org.jdbi.v3.sqlobject.statement.SqlQuery;
 import org.jdbi.v3.sqlobject.statement.SqlUpdate;
 
+import java.time.Instant;
 import java.util.List;
 
 public interface SpecifyArsSyncRepository extends SqlObject {
@@ -75,4 +76,18 @@ public interface SpecifyArsSyncRepository extends SqlObject {
         WHERE specify_ars_sync_batch_id = :specify_ars_sync_batch_id
 """)
     void updateSpecifyArsSyncBatch(@Bind Integer  specify_ars_sync_batch_id, SpecifyArsSyncBatchStatus status, String  additional_info);
+
+    @SqlQuery("""
+            SELECT EXISTS(
+                SELECT 1
+                FROM specify_sync_log ssl
+                WHERE ssl.specify_collection_object_attachment_id = :specify_collection_object_attachment_id
+                  AND ssl.sync_direction = 'ARS_TO_SPECIFY'
+                  AND ssl.status = 'SUCCEEDED'
+                  AND ssl.specify_modified_date BETWEEN :from_timestamp AND :to_timestamp
+            )
+            """)
+    boolean hasArsToSpecifySyncNearTimestamp(@Bind Long specify_collection_object_attachment_id,
+                                             @Bind("from_timestamp") Instant fromTimestamp,
+                                             @Bind("to_timestamp") Instant toTimestamp);
 }
