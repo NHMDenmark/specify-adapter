@@ -241,9 +241,10 @@ public class MappingServiceTest {
     void testtest2() {
         DateTimeFormatter specifyDateFormat = DateTimeFormatter.ISO_LOCAL_DATE_TIME
                 .withZone(ZoneId.of("Europe/Copenhagen"));
-        TemporalAccessor parse = specifyDateFormat.parse("2026-02-03T05:09:28");
-
-        System.out.println(Instant.from(parse));
+        TemporalAccessor parse = specifyDateFormat.parse("2026-04-09T14:42:43.154630");
+        System.out.println(parse);
+//        mappedAsset.SpecifyModifiedDate = Instant.from(specifyDateFormat.parse(timestampToParse));
+        System.out.println(Instant.from(specifyDateFormat.parse("2026-04-09T14:42:43.154630")));
     }
     ;
 //    public static Instant format(String isoZ) {

@@ -108,7 +108,6 @@ public class MappingService {
             assetSpecimen.specimen = specimen;
             mappedAsset.asset.asset_specimen.add(assetSpecimen);
             mappedAsset.specifyCollectionObjectAttachmentId = collectionObjectAttachment.id;
-            System.out.println(" Tsest          tezt  " + collectionObject.timestampmodified);
             mappedAsset.SpecifyModifiedDate = Instant.from(specifyDateFormat.parse(collectionObject.timestampmodified));
             mappedAssets.add(mappedAsset);
             mappedAsset.updatedFields.addAll(specifyArsValues.values());

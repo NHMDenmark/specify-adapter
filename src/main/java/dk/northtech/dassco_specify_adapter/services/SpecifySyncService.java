@@ -115,7 +115,9 @@ public class SpecifySyncService {
                 SpecifyArsSyncRepository repository = handle.attach(SpecifyArsSyncRepository.class);
                 Integer batchId = repository.createNewBatch(new SpecifyArsSyncBatch(null, now, finalFromInsant, now, SpecifyArsSyncBatchStatus.STARTED, null, specifySyncLogEntries));
                 attachmentContextsToSync.stream()
-                        .map(mappingService::mapAsset).forEach(
+                        .map(mappingService::mapAsset)
+                        .filter(mappedAsset -> !wasRecentlySyncedFromArs(repository, mappedAsset))
+                        .forEach(
                 mappedAsset -> {
                     SpecifySyncStatus specifySyncStatus = mappedAsset.error == null ? SpecifySyncStatus.STARTED : SpecifySyncStatus.FAILED;
                     SpecifySyncLogEntry specifySyncLogEntry = new SpecifySyncLogEntry(null
@@ -158,6 +160,22 @@ public class SpecifySyncService {
         }
 
 
+    }
+
+    private boolean wasRecentlySyncedFromArs(SpecifyArsSyncRepository repository, MappedAsset mappedAsset) {
+        if (mappedAsset.specifyCollectionObjectAttachmentId == null || mappedAsset.SpecifyModifiedDate == null) {
+            return false;
+        }
+        // Any specify update that is distinct from the ARS update will be synced as we cant determine what is most important (Specify is master for some of the data, ARS for other).
+        Instant fromTimestamp = mappedAsset.SpecifyModifiedDate.minusSeconds(1);
+        Instant toTimestamp = mappedAsset.SpecifyModifiedDate.plusSeconds(1);
+        boolean recentlySynced = repository.hasArsToSpecifySyncNearTimestamp(mappedAsset.specifyCollectionObjectAttachmentId
+                , fromTimestamp
+                , toTimestamp);
+        if (recentlySynced) {
+            log.info("Skipping collection object attachment {} because it was recently synced from ARS to Specify around {}", mappedAsset.specifyCollectionObjectAttachmentId, mappedAsset.SpecifyModifiedDate);
+        }
+        return recentlySynced;
     }
 
     public void handleAcknowledge(SyncAcknowledge acknowledge) {
