@@ -47,7 +47,7 @@ public class SpecifyQueryService {
     private static final int ATTACHMENT_PAGE_SIZE = 20;
     private static final int MAX_UPDATED_ATTACHMENTS = 100;
     private static final DateTimeFormatter SPECIFY_DATE_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
-    private static final ZoneId SPECIFY_TIMEZONE = ZoneId.of("Europe/Copenhagen");
+    public static final ZoneId SPECIFY_TIMEZONE = ZoneId.of("Europe/Copenhagen");
     @Inject
     public SpecifyQueryService(SpecifyEndpointService specifyEndpointService, SpecifyProperties specifyProperties) {
         this.specifyEndpointService = specifyEndpointService;
