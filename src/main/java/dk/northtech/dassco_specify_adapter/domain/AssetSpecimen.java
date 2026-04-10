@@ -1,5 +1,7 @@
 package dk.northtech.dassco_specify_adapter.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import javax.annotation.Nullable;
 
 public class AssetSpecimen {
@@ -12,13 +14,9 @@ public class AssetSpecimen {
     public boolean asset_detached;
     @Nullable
     public Specimen specimen;
+    @JsonIgnore
+    public String specifyAttachmentModifiedTimestamp;
 
-    public AssetSpecimen(String asset_guid, String specimen_pid, String asset_preparation_type, boolean asset_detached) {
-        this.asset_guid = asset_guid;
-        this.specimen_pid = specimen_pid;
-        this.asset_preparation_type = asset_preparation_type;
-        this.asset_detached = asset_detached;
-    }
 
     public AssetSpecimen(boolean asset_detached, Long specify_collection_object_attachment_id, String asset_preparation_type, Long asset_specimen_id, String specimen_pid, String asset_guid, Integer specimen_id) {
         this.asset_detached = asset_detached;

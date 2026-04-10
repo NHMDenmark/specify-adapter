@@ -30,7 +30,10 @@ import java.net.*;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 
 @Service
 public class SpecifyEndpointService {
@@ -65,7 +68,7 @@ public class SpecifyEndpointService {
         return loginToCollection(specifyCollectionId, loginInfo.csrftoken);
     }
 
-    public List<AssetSpecimen> pushImageToSpecify(CollectionObjectAttachment collectionObjectAttachment, Asset arsAsset, boolean deleteAttachment) {
+    public List<AssetSpecimen> pushAssetToSpecify(CollectionObjectAttachment collectionObjectAttachment, Asset arsAsset, boolean deleteAttachment) {
         SpecifyCollectionLogin specifyLogin = loginToCollection(arsAsset.collection);
 
         UploadParams uploadParams = null;
@@ -77,7 +80,6 @@ public class SpecifyEndpointService {
         for (AssetSpecimen assetSpecimen : arsAsset.asset_specimen) {
             logger.info("Updating specimen: " + assetSpecimen
             );
-            CollectionObjectAttachment collectionObjectAttachmentWithIds = null;
             //Check if attachment has been deleted outside of ars
             // 5: Get Collection Object (if it exists!):
             CollectionObject collectionObject = getCollectionObject(specifyLogin, assetSpecimen.specimen.barcode());
@@ -99,6 +101,7 @@ public class SpecifyEndpointService {
                         logger.info("Tombstoning collectionObjectAttachment: {}", coath.toString());
                         putCollectionObjectAttachment(coath, specifyLogin);
                         AssetSpecimen updated = new AssetSpecimen(assetSpecimen.asset_detached, null, assetSpecimen.asset_preparation_type, assetSpecimen.specimen_pid, assetSpecimen.asset_guid);
+                        updated.specimen_id = assetSpecimen.specimen.specimen_id();
                         updated.specimen = assetSpecimen.specimen;
 
                         specimenWithIds.add(updated);
@@ -126,6 +129,8 @@ public class SpecifyEndpointService {
                         CollectionObjectAttachment coaWithId = putCollectionObjectAttachment(coath, specifyLogin);
                         AssetSpecimen updated = new AssetSpecimen(assetSpecimen.asset_detached, coaWithId.id, assetSpecimen.asset_preparation_type, assetSpecimen.specimen_pid, assetSpecimen.asset_guid);
                         updated.specimen = assetSpecimen.specimen;
+                        updated.specimen_id = assetSpecimen.specimen_id;
+                        updated.specifyAttachmentModifiedTimestamp = coaWithId.attachment.timestampmodified;
                         specimenWithIds.add(updated);
                     }
                 }
@@ -143,11 +148,12 @@ public class SpecifyEndpointService {
                 collectionObjectAttachment.attachment.attachmentlocation = uploadParams.attachmentLocation;
                 CollectionObjectAttachment coaWithId = postCollectionObjectAttachment(collectionObjectAttachment, specifyLogin);
                 AssetSpecimen newAssetSpecimen = new AssetSpecimen(assetSpecimen.asset_detached, coaWithId.id, assetSpecimen.asset_preparation_type, assetSpecimen.specimen_pid, assetSpecimen.asset_guid);
+                newAssetSpecimen.specimen_id = assetSpecimen.specimen_id;
                 newAssetSpecimen.specimen = assetSpecimen.specimen;
+                newAssetSpecimen.specifyAttachmentModifiedTimestamp = coaWithId.attachment.timestampmodified;
                 specimenWithIds.add(newAssetSpecimen);
             }
 
-            collectionObjectAttachmentWithIds = null;
             if (deleteAttachment) {
                 // delete
             }
@@ -525,7 +531,6 @@ public class SpecifyEndpointService {
                     .POST(HttpRequest.BodyPublishers.ofString(json))
                     .build();
 
-            System.out.println(request);
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 201) {

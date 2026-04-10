@@ -49,7 +49,7 @@ public class SpecifySyncService {
             ARSUpdate arsUpdate = mapper.readValue(arsUpdateJson, ARSUpdate.class);
             try {
                 CollectionObjectAttachment attachment = mappingService.getAttachment(arsUpdate.asset);
-                List<AssetSpecimen> specimen = specifyEndpointService.pushImageToSpecify(attachment, arsUpdate.asset, arsUpdate.deleteAttachment);
+                List<AssetSpecimen> specimen = specifyEndpointService.pushAssetToSpecify(attachment, arsUpdate.asset, arsUpdate.deleteAttachment);
                 Instant syncTimestamp = Instant.now();
                 jdbi.withHandle(handle -> {
                     SpecifyArsSyncRepository repository = handle.attach(SpecifyArsSyncRepository.class);
@@ -57,9 +57,11 @@ public class SpecifySyncService {
                         if (specimenEntry.specify_collection_object_attachment_id == null) {
                             continue;
                         }
+
+                        Instant modifiedTimestamp = Instant.from(specifyDateFormat.parse(specimenEntry.specifyAttachmentModifiedTimestamp));
                         repository.insertSyncLog(new SpecifySyncLogEntry(
                                 null,
-                                syncTimestamp,
+                                modifiedTimestamp,
                                 SpecifySyncStatus.SUCCEEDED,
                                 specimenEntry.specify_collection_object_attachment_id,
                                 null,
