@@ -9,7 +9,7 @@ import org.glassfish.jersey.server.filter.RolesAllowedDynamicFeature;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
-@ApplicationPath("/")
+@ApplicationPath("/bridge")
 public class JerseyApplicationConfig extends ResourceConfig {
     public JerseyApplicationConfig(){
         register(MultiPartFeature.class);
