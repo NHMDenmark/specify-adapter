@@ -23,7 +23,7 @@ public interface SpecifyArsSyncRepository extends SqlObject {
 
     @GetGeneratedKeys
     @SqlUpdate("""
-            INSERT INTO public.specify_sync_log(specify_modified_date
+            INSERT INTO specify_sync_log(specify_modified_date
                         , status
                         , specify_collection_object_attachment_id
                         , additional_info
