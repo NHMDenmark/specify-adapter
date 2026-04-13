@@ -93,10 +93,4 @@ public class SecurityConfig {
       return source.getCorsConfiguration(request); // apply to everything else
     };
   }
-
-  @Bean("no-auth")
-  public SecurityFilterChain noFilterChain(HttpSecurity http) throws Exception {
-    // For now, we do not require any credentials.
-    return http.build();
-  }
 }
