@@ -114,12 +114,22 @@ public class SpecifySyncService {
             jdbi.inTransaction(handle -> {
                 SpecifyArsSyncRepository repository = handle.attach(SpecifyArsSyncRepository.class);
                 Integer batchId = repository.createNewBatch(new SpecifyArsSyncBatch(null, now, finalFromInsant, now, SpecifyArsSyncBatchStatus.STARTED, null, specifySyncLogEntries));
+                int[] totalLogEntriesCreated = {0};
+                int[] startedEntries = {0};
+                int[] failedEntries = {0};
+
                 attachmentContextsToSync.stream()
                         .map(mappingService::mapAsset)
                         .filter(mappedAsset -> !wasRecentlySyncedFromArs(repository, mappedAsset))
                         .forEach(
                 mappedAsset -> {
                     SpecifySyncStatus specifySyncStatus = mappedAsset.error == null ? SpecifySyncStatus.STARTED : SpecifySyncStatus.FAILED;
+                    totalLogEntriesCreated[0]++;
+                    if (specifySyncStatus == SpecifySyncStatus.STARTED) {
+                        startedEntries[0]++;
+                    } else {
+                        failedEntries[0]++;
+                    }
                     SpecifySyncLogEntry specifySyncLogEntry = new SpecifySyncLogEntry(null
                             , mappedAsset.SpecifyModifiedDate
                             , specifySyncStatus
@@ -132,6 +142,9 @@ public class SpecifySyncService {
                     Long entryId = repository.insertSyncLog(specifySyncLogEntry);
                     entryIdAsset.put(entryId, mappedAsset);
                 });
+                if (totalLogEntriesCreated[0] > 0 && startedEntries[0] == 0 && failedEntries[0] > 0) {
+                    repository.updateSpecifyArsSyncBatch(batchId, SpecifyArsSyncBatchStatus.FAILED, "All entries failed before queue dispatch");
+                }
                 handle.commit();
                 return handle;
             });
