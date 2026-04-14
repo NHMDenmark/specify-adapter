@@ -21,6 +21,12 @@ public interface SpecifyArsSyncRepository extends SqlObject {
     @SqlQuery("SELECT * FROM specify_ars_sync_batch WHERE status IN ('FAILED_ENTRIES', 'SUCCEEDED', 'STARTED') ORDER BY specify_to_timestamp DESC LIMIT 1")
     SpecifyArsSyncBatch getLatestNonFailed();
 
+    @SqlQuery("SELECT * FROM specify_ars_sync_batch ORDER BY batch_timestamp DESC")
+    List<SpecifyArsSyncBatch> getSyncBatches();
+
+    @SqlQuery("SELECT * FROM specify_ars_sync_batch ORDER BY batch_timestamp DESC LIMIT :limit OFFSET :offset")
+    List<SpecifyArsSyncBatch> getSyncBatchesPaged(@Bind Integer limit, @Bind Integer offset);
+
     @GetGeneratedKeys
     @SqlUpdate("""
             INSERT INTO specify_sync_log(specify_modified_date
@@ -56,6 +62,9 @@ public interface SpecifyArsSyncRepository extends SqlObject {
 
     @SqlQuery("SELECT * FROM specify_sync_log s WHERE s.specify_ars_sync_batch_id = :specify_ars_sync_batch_id")
     List<SpecifySyncLogEntry> getSyncLog(@Bind Integer specify_ars_sync_batch_id);
+
+    @SqlQuery("SELECT * FROM specify_sync_log s WHERE s.specify_ars_sync_batch_id = :specify_ars_sync_batch_id ORDER BY s.specify_sync_log_id DESC LIMIT :limit OFFSET :offset")
+    List<SpecifySyncLogEntry> getSyncLogPaged(@Bind Integer specify_ars_sync_batch_id, @Bind Integer limit, @Bind Integer offset);
 
 
     @SqlUpdate("""

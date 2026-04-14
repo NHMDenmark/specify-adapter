@@ -253,6 +253,38 @@ public class SpecifySyncService {
         });
     }
 
+    public List<SpecifyArsSyncBatch> listSyncBatches() {
+        return jdbi.withHandle(h -> {
+            SpecifyArsSyncRepository repository = h.attach(SpecifyArsSyncRepository.class);
+            return repository.getSyncBatches();
+        });
+    }
+
+    public List<SpecifyArsSyncBatch> listSyncBatches(Integer offset, Integer limit) {
+        int safeOffset = Math.max(0, offset == null ? 0 : offset);
+        int safeLimit = limit == null ? 100 : Math.max(1, Math.min(limit, 500));
+        return jdbi.withHandle(h -> {
+            SpecifyArsSyncRepository repository = h.attach(SpecifyArsSyncRepository.class);
+            return repository.getSyncBatchesPaged(safeLimit, safeOffset);
+        });
+    }
+
+    public List<SpecifySyncLogEntry> listSyncBatchEntries(Integer batchId) {
+        return jdbi.withHandle(h -> {
+            SpecifyArsSyncRepository repository = h.attach(SpecifyArsSyncRepository.class);
+            return repository.getSyncLog(batchId);
+        });
+    }
+
+    public List<SpecifySyncLogEntry> listSyncBatchEntries(Integer batchId, Integer offset, Integer limit) {
+        int safeOffset = Math.max(0, offset == null ? 0 : offset);
+        int safeLimit = limit == null ? 100 : Math.max(1, Math.min(limit, 500));
+        return jdbi.withHandle(h -> {
+            SpecifyArsSyncRepository repository = h.attach(SpecifyArsSyncRepository.class);
+            return repository.getSyncLogPaged(batchId, safeLimit, safeOffset);
+        });
+    }
+
     SpecifyArsSyncBatch startSyncBatch(SpecifyArsSyncBatch syncBatch) {
         if (syncBatch.entries() == null || syncBatch.entries().isEmpty()) {
             throw new RuntimeException("Sync batch must have entries");
