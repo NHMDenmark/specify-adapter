@@ -10,6 +10,7 @@ import dk.northtech.dassco_specify_adapter.domain.sync.SpecifyAttachmentContext;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -35,6 +36,8 @@ public class MappingService {
     private static final String VASCULAR_PLANTS_COLLECTION = "NHMD Vascular Plants";
     private static final String SYNC_DEFAULTS_FILENAME = "default.sync-defaults.conf";
     private static final String SYNC_DEFAULTS_SUFFIX = ".sync-defaults.conf";
+    @Value("${info.version}")
+    private String infoVersion;
 
     @Inject
     public MappingService(SpecifyMappingsProperties specifyMappingsProperties) {
@@ -94,6 +97,7 @@ public class MappingService {
             mappedAsset.asset.pipeline = syncDefaults.pipeline();
             mappedAsset.asset.status = syncDefaults.status();
             mappedAsset.asset.workstation = syncDefaults.workstation();
+            mappedAsset.asset.metadata_source = "specify_adapter_v" + infoVersion;
             if(mappedAsset.asset.collection == null) {
                 mappedAsset.asset.collection = VASCULAR_PLANTS_COLLECTION;
             }
@@ -163,6 +167,7 @@ public class MappingService {
         mappedAsset.asset.pipeline = syncDefaults.pipeline();
         mappedAsset.asset.status = syncDefaults.status();
         mappedAsset.asset.workstation = syncDefaults.workstation();
+        mappedAsset.asset.metadata_source = "specify_adapter_v" + infoVersion;
 
         if (mappedAsset.asset.collection == null) {
             mappedAsset.asset.collection = VASCULAR_PLANTS_COLLECTION;
