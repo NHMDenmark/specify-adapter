@@ -252,4 +252,25 @@ public class MappingServiceTest {
 //        TemporalAccessor parse = dateTimeFormatter.parse("2017-08-27T17:43:11Z");
 //        return null;
 //    }
+
+    @Test
+    void getSpecifyDateValueMapsFilecreateddateToDateAssetTaken() {
+        MappingService mappingService = new MappingService(new SpecifyMappingsProperties("./mappings/"));
+        Attachment attachment = new Attachment();
+        attachment.filecreateddate = "2024-01-31";
+
+        Instant mappedDate = mappingService.getSpecifyDateValue("filecreateddate", attachment);
+
+        assertThat(mappedDate).isEqualTo(Instant.parse("2024-01-31T00:00:00Z"));
+    }
+
+    @Test
+    void getSpecifyDateValueReturnsNullWhenFilecreateddateIsNull() {
+        MappingService mappingService = new MappingService(new SpecifyMappingsProperties("./mappings/"));
+        Attachment attachment = new Attachment();
+
+        Instant mappedDate = mappingService.getSpecifyDateValue("filecreateddate", attachment);
+
+        assertThat(mappedDate).isNull();
+    }
 }

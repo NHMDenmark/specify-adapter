@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -246,6 +247,7 @@ public class MappingService {
     }
 
     private record SyncDefaults(String pipeline, String status, String workstation) {
+
     }
 
     public void mapValueToAsset(MappedAsset mappedAsset, String arsProperty, String specifyProperty) {
@@ -378,6 +380,13 @@ public class MappingService {
     public Instant getSpecifyDateValue(String token, Attachment attachment) {
         if (token == null) {
             throw new IllegalArgumentException("token is null");
+        }
+        if ("filecreateddate".equals(token)) {
+            if (Strings.isNullOrEmpty(attachment.filecreateddate)) {
+                return null;
+            }
+            LocalDate localDate = LocalDate.parse(attachment.filecreateddate);
+            return localDate.atStartOfDay(ZoneOffset.UTC).toInstant();
         }
         String date = switch (token) {
             case "copyrightdate" -> attachment.copyrightdate;
