@@ -14,9 +14,9 @@ public class SpecifyAttachmentContext {
     public List<PrepType> prepTypes;
     public Long collectionObjectAttachmentId;
 
-    public SpecifyAttachmentContext(Attachment attachment, Agent modifiedByAgent, CollectionObject collectionObject, List<PrepType> prepTypes, Long collectionObjectAttachmentId) {
+    public SpecifyAttachmentContext(Attachment attachment, Agent createdByAgent, CollectionObject collectionObject, List<PrepType> prepTypes, Long collectionObjectAttachmentId) {
         this.attachment = attachment;
-        this.modifiedByAgent = modifiedByAgent;
+        this.modifiedByAgent = createdByAgent;
         this.collectionObject = collectionObject;
         this.prepTypes = prepTypes;
         this.collectionObjectAttachmentId = collectionObjectAttachmentId;

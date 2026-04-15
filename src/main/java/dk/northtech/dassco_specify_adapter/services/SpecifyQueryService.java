@@ -131,8 +131,7 @@ public class SpecifyQueryService {
                 if (updatedAttachmentCount > MAX_UPDATED_ATTACHMENTS) {
                     throw new RuntimeException("Found more than " + MAX_UPDATED_ATTACHMENTS + " attachments updated since last sync");
                 }
-                String agent = attachment.modifiedbyagent == null ? attachment.createdbyagent : attachment.modifiedbyagent;
-                Agent modifiedByAgent = getAgent(specifyLogin, agent, agentByUri);
+                Agent createdByAgent =  getAgent(specifyLogin, attachment.createdbyagent, agentByUri);
                 CollectionObjectAttachmentSearchResult collectionObjectAttachmentResult = getCollectionObjectAttachments(specifyLogin, attachment.collectionobjectattachments);
 
                 if (collectionObjectAttachmentResult == null || collectionObjectAttachmentResult.objects == null || collectionObjectAttachmentResult.objects.isEmpty()) {
@@ -151,7 +150,7 @@ public class SpecifyQueryService {
                             collectionObject.id,
                             id -> getPrepTypesForCollectionObject(collectionObject, specifyLogin, prepTypeByUri)
                     );
-                    contexts.add(new SpecifyAttachmentContext(attachment, modifiedByAgent, collectionObject, prepTypes, collectionObjectAttachment.id));
+                    contexts.add(new SpecifyAttachmentContext(attachment, createdByAgent, collectionObject, prepTypes, collectionObjectAttachment.id));
                 }
             }
 
