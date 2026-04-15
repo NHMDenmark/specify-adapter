@@ -38,7 +38,6 @@ public class Logs {
     public List<String> listLogs(
             @Context SecurityContext securityContext
     ) {
-        System.out.println("loooooooooooort");
         return logService.listLogs();
     }
 

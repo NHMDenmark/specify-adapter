@@ -296,7 +296,7 @@ public class SpecifyEndpointService {
                 for (HttpCookie cookie : cookies) {
                     if ("csrftoken".equalsIgnoreCase(cookie.getName())) {
                         loginInfo.csrftoken = cookie.getValue();
-                        logger.info("csrftoken: {}", loginInfo.csrftoken);
+//                        logger.info("csrftoken: {}", loginInfo.csrftoken);
                         return loginInfo;
                     }
                 }
