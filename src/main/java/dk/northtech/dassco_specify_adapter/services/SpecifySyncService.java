@@ -119,7 +119,7 @@ public class SpecifySyncService {
                 int[] failedEntries = {0};
 
                 attachmentContextsToSync.stream()
-                        .map(mappingService::mapAsset)
+                        .map(mappingService::mapAssetFromContext)
                         .filter(mappedAsset -> !wasRecentlySyncedFromArs(repository, mappedAsset))
                         .forEach(
                 mappedAsset -> {

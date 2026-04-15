@@ -7,6 +7,7 @@ import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObject;
 import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObjectAttachment;
 import dk.northtech.dassco_specify_adapter.domain.sync.MappedAsset;
 import dk.northtech.dassco_specify_adapter.domain.sync.SpecifyAttachmentContext;
+import dk.northtech.dassco_specify_adapter.domain.specify.Agent;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -121,7 +122,8 @@ public class MappingService {
         return mappedAssets;
     }
 
-    public MappedAsset mapAsset(SpecifyAttachmentContext context) {
+
+    public MappedAsset mapAssetFromContext(SpecifyAttachmentContext context) {
         HashSet<String> preparationTypes = new HashSet<>();
         if (context.prepTypes != null) {
             context.prepTypes.forEach(prepType -> {
@@ -133,11 +135,7 @@ public class MappingService {
         if (preparationTypes.isEmpty()) {
             preparationTypes.add("unknown");
         }
-        String primaryPreparationType = preparationTypes.iterator().next();
-        return mapAsset(context.collectionObject, context.attachment, context.collectionObjectAttachmentId, primaryPreparationType, preparationTypes);
-    }
-
-    private MappedAsset mapAsset(CollectionObject collectionObject, Attachment attachment, Long collectionObjectAttachmentId, String primaryPreparationType, HashSet<String> preparationTypes) {
+        String primaryPreparationType = preparationTypes.size() == 1 ? preparationTypes.iterator().next() : "unknown";
         SyncDefaults syncDefaults = readSyncDefaults(NHMD, VASCULAR_PLANTS_COLLECTION);
         String values = readConfigARSToSpecify(NHMD, VASCULAR_PLANTS_COLLECTION);
         values = values.replace("\r\n", "${split}")
@@ -146,7 +144,7 @@ public class MappingService {
 
         MappedAsset mappedAsset = new MappedAsset();
         mappedAsset.asset = new Asset();
-        mappedAsset.attachment = attachment;
+        mappedAsset.attachment = context.attachment;
 
         specifyArsValues.forEach((mappedKey, mappedValue) -> {
             if (mappedValue.equals("${asset_guid}.${file_format}")) {
@@ -168,6 +166,7 @@ public class MappingService {
         mappedAsset.asset.pipeline = syncDefaults.pipeline();
         mappedAsset.asset.status = syncDefaults.status();
         mappedAsset.asset.workstation = syncDefaults.workstation();
+
         mappedAsset.asset.metadata_source = "specify_adapter_v" + infoVersion;
 
         if (mappedAsset.asset.collection == null) {
@@ -176,28 +175,51 @@ public class MappingService {
         if (mappedAsset.asset.institution == null) {
             mappedAsset.asset.institution = NHMD;
         }
+        String digitiser = getDigitiser(context.modifiedByAgent);
+        if (!Strings.isNullOrEmpty(digitiser)) {
+            mappedAsset.asset.digitiser = digitiser;
+            mappedAsset.updatedFields.add("${digitiser}");
+        }
 
         Specimen specimen = new Specimen(
                 NHMD,
                 VASCULAR_PLANTS_COLLECTION,
-                collectionObject.catalognumber,
-                "NHMD.NHMD Vascular Plants" + collectionObject.catalognumber,
+                context.collectionObject.catalognumber,
+                "NHMD.NHMD Vascular Plants" + context.collectionObject.catalognumber,
                 preparationTypes,
                 null,
                 null,
                 List.of()
         );
-        AssetSpecimen assetSpecimen = new AssetSpecimen(false, collectionObjectAttachmentId, primaryPreparationType, specimen.specimen_pid(), mappedAsset.asset.asset_guid);
+        AssetSpecimen assetSpecimen = new AssetSpecimen(false, context.collectionObjectAttachmentId, primaryPreparationType, specimen.specimen_pid(), mappedAsset.asset.asset_guid);
         assetSpecimen.specimen = specimen;
         mappedAsset.asset.asset_specimen.add(assetSpecimen);
 
-        mappedAsset.specifyCollectionObjectAttachmentId = collectionObjectAttachmentId;
-        String timestampToParse = attachment.timestampmodified != null ? attachment.timestampmodified : collectionObject.timestampmodified;
+        mappedAsset.specifyCollectionObjectAttachmentId = context.collectionObjectAttachmentId;
+        String timestampToParse = context.attachment.timestampmodified != null ? context.attachment.timestampmodified : context.collectionObject.timestampmodified;
         if (timestampToParse != null) {
             mappedAsset.SpecifyModifiedDate = Instant.from(specifyDateFormat.parse(timestampToParse));
         }
         mappedAsset.updatedFields.addAll(specifyArsValues.values());
         return mappedAsset;
+    }
+
+    private String getDigitiser(Agent modifiedByAgent) {
+        if (modifiedByAgent == null) {
+            return null;
+        }
+        String firstName = Strings.nullToEmpty(modifiedByAgent.firstname).trim();
+        String lastName = Strings.nullToEmpty(modifiedByAgent.lastname).trim();
+        if (firstName.isEmpty() && lastName.isEmpty()) {
+            return null;
+        }
+        if (firstName.isEmpty()) {
+            return lastName;
+        }
+        if (lastName.isEmpty()) {
+            return firstName;
+        }
+        return firstName + " " + lastName;
     }
 
     private SyncDefaults readSyncDefaults(String institution, String collection) {

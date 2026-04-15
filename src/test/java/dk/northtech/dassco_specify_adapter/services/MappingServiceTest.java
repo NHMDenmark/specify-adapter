@@ -2,8 +2,10 @@ package dk.northtech.dassco_specify_adapter.services;
 
 import dk.northtech.dassco_specify_adapter.assets.SpecifyMappingsProperties;
 import dk.northtech.dassco_specify_adapter.domain.*;
+import dk.northtech.dassco_specify_adapter.domain.specify.Agent;
 import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObject;
 import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObjectAttachment;
+import dk.northtech.dassco_specify_adapter.domain.sync.SpecifyAttachmentContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -272,5 +274,59 @@ public class MappingServiceTest {
         Instant mappedDate = mappingService.getSpecifyDateValue("filecreateddate", attachment);
 
         assertThat(mappedDate).isNull();
+    }
+
+    @Test
+    void mapAssetFromContextSetsDigitiserFromModifiedByAgentName() throws IOException {
+        Path mappingsPath = createSyncMappingDirectory();
+        writeCollectionMappingFile(mappingsPath);
+        writeSyncDefaultsFile(mappingsPath, "pipeline=PIPE_DEFAULT\nstatus=STATUS_DEFAULT\nworkstation=WORK_DEFAULT\n");
+
+        MappingService mappingService = new MappingService(new SpecifyMappingsProperties(withTrailingSlash(mappingsPath)));
+        Attachment attachment = new Attachment();
+        attachment.attachmentlocation = "guid-from-attachment";
+        attachment.timestampmodified = "2026-02-03T05:09:28";
+
+        CollectionObject collectionObject = new CollectionObject();
+        collectionObject.catalognumber = "NHMD0004";
+        collectionObject.timestampmodified = "2026-02-03T05:09:28";
+
+        Agent modifiedByAgent = new Agent();
+        modifiedByAgent.firstname = "Jane";
+        modifiedByAgent.lastname = "Doe";
+
+        SpecifyAttachmentContext context = new SpecifyAttachmentContext(attachment, modifiedByAgent, collectionObject, List.of(), 100L);
+
+        var mappedAsset = mappingService.mapAssetFromContext(context);
+
+        assertThat(mappedAsset.asset.digitiser).isEqualTo("Jane Doe");
+        assertThat(mappedAsset.updatedFields).contains("${digitiser}");
+    }
+
+    @Test
+    void mapAssetFromContextDoesNotSetDigitiserWhenAgentNameMissing() throws IOException {
+        Path mappingsPath = createSyncMappingDirectory();
+        writeCollectionMappingFile(mappingsPath);
+        writeSyncDefaultsFile(mappingsPath, "pipeline=PIPE_DEFAULT\nstatus=STATUS_DEFAULT\nworkstation=WORK_DEFAULT\n");
+
+        MappingService mappingService = new MappingService(new SpecifyMappingsProperties(withTrailingSlash(mappingsPath)));
+        Attachment attachment = new Attachment();
+        attachment.attachmentlocation = "guid-from-attachment";
+        attachment.timestampmodified = "2026-02-03T05:09:28";
+
+        CollectionObject collectionObject = new CollectionObject();
+        collectionObject.catalognumber = "NHMD0005";
+        collectionObject.timestampmodified = "2026-02-03T05:09:28";
+
+        Agent modifiedByAgent = new Agent();
+        modifiedByAgent.firstname = "  ";
+        modifiedByAgent.lastname = "";
+
+        SpecifyAttachmentContext context = new SpecifyAttachmentContext(attachment, modifiedByAgent, collectionObject, List.of(), 101L);
+
+        var mappedAsset = mappingService.mapAssetFromContext(context);
+
+        assertThat(mappedAsset.asset.digitiser).isNull();
+        assertThat(mappedAsset.updatedFields).doesNotContain("${digitiser}");
     }
 }
