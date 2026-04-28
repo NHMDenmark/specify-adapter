@@ -185,7 +185,7 @@ public class MappingService {
                 NHMD,
                 VASCULAR_PLANTS_COLLECTION,
                 context.collectionObject.catalognumber,
-                "NHMD.NHMD Vascular Plants" + context.collectionObject.catalognumber,
+                mappedAsset.asset.institution + "." + mappedAsset.asset.collection + "." + context.collectionObject.catalognumber,
                 preparationTypes,
                 null,
                 null,
