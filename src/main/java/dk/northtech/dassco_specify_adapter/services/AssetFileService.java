@@ -5,12 +5,12 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.net.UrlEscapers;
 import dk.northtech.dassco_specify_adapter.assets.FileProxyProperties;
+import dk.northtech.dassco_specify_adapter.configuration.SpecifyWebAssetServiceConfig;
 import dk.northtech.dassco_specify_adapter.domain.AcknowledgeStatus;
 import dk.northtech.dassco_specify_adapter.domain.SpecifyAdapterException;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -30,15 +30,14 @@ public class AssetFileService {
 
     FileProxyProperties fileProxyProperties;
     KeycloakService keycloakService;
+    SpecifyWebAssetServiceConfig specifyWebAssetServiceConfig;
     private static final Logger logger = LoggerFactory.getLogger(AssetFileService.class);
 
-    @Value("${asset-service.institution}")
-    private String institution;
-
     @Inject
-    public AssetFileService(FileProxyProperties fileProxyProperties, KeycloakService keycloakService) {
+    public AssetFileService(FileProxyProperties fileProxyProperties, SpecifyWebAssetServiceConfig specifyWebAssetServiceConfig, KeycloakService keycloakService) {
         this.fileProxyProperties = fileProxyProperties;
         this.keycloakService = keycloakService;
+        this.specifyWebAssetServiceConfig = specifyWebAssetServiceConfig;
     }
 
     public List<String> getAssetFiles(String assetGuid, String token) {
@@ -157,7 +156,7 @@ public class AssetFileService {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(fileProxyProperties.rootUrl()
                         + "/file_proxy/api/assetfiles/parkedfiles"
-                        + "?institution=" + URLEncoder.encode(this.institution, StandardCharsets.UTF_8)
+                        + "?institution=" + URLEncoder.encode(this.specifyWebAssetServiceConfig.institution(), StandardCharsets.UTF_8)
                         + "&pathPostFix=" + URLEncoder.encode(pathPostFix, StandardCharsets.UTF_8)
                         + "&collection=" + URLEncoder.encode(coll, StandardCharsets.UTF_8)
                         + "&type=" + URLEncoder.encode(Objects.equals(type, "T") ? "thumbnails" : "originals", StandardCharsets.UTF_8)
@@ -186,7 +185,7 @@ public class AssetFileService {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(fileProxyProperties.rootUrl()
                         + "/file_proxy/api/assetfiles/parkedfiles/filepath"
-                        + "?institution=" + URLEncoder.encode(this.institution, StandardCharsets.UTF_8)
+                        + "?institution=" + URLEncoder.encode(this.specifyWebAssetServiceConfig.institution(), StandardCharsets.UTF_8)
                         + "&pathPostFix=" + URLEncoder.encode(pathPostFix, StandardCharsets.UTF_8)
                         + "&collection=" + URLEncoder.encode(coll, StandardCharsets.UTF_8)
                         + "&type=" + URLEncoder.encode(Objects.equals(type, "T") ? "thumbnails" : "originals", StandardCharsets.UTF_8)
