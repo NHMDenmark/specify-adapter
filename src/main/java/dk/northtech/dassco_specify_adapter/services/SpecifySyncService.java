@@ -67,7 +67,7 @@ public class SpecifySyncService {
                                 null,
                                 syncTimestamp,
                                 null,
-                                arsUpdate.asset.asset_guid,
+                                normalizeArsAssetGuidForSyncLog(arsUpdate.asset.asset_guid),
                                 SyncDirection.ARS_TO_SPECIFY
                         ));
                     }
@@ -137,7 +137,7 @@ public class SpecifySyncService {
                             , mappedAsset.error
                             , now
                             , batchId
-                            , mappedAsset.asset.asset_guid
+                            , normalizeArsAssetGuidForSyncLog(mappedAsset.asset.asset_guid)
                             , SyncDirection.SPECIFY_TO_ARS);
                     Long entryId = repository.insertSyncLog(specifySyncLogEntry);
                     entryIdAsset.put(entryId, mappedAsset);
@@ -191,6 +191,21 @@ public class SpecifySyncService {
         return recentlySynced;
     }
 
+    private String normalizeArsAssetGuidForSyncLog(String assetGuid) {
+        if (assetGuid == null) {
+            return null;
+        }
+        String normalized = assetGuid.trim();
+        if (normalized.isEmpty()) {
+            return normalized;
+        }
+        int lastDotIndex = normalized.lastIndexOf('.');
+        if (lastDotIndex > 0) {
+            return normalized.substring(0, lastDotIndex);
+        }
+        return normalized;
+    }
+
     public void handleAcknowledge(SyncAcknowledge acknowledge) {
         jdbi.withHandle(h -> {
             int countNotStarted = 0;
@@ -211,7 +226,7 @@ public class SpecifySyncService {
                             , syncLogEntry.specify_modified_date()
                             , acknowledge.specifySyncStatus()
                             , syncLogEntry.specify_collection_object_attachment_id()
-                            , acknowledge.additional_info()
+                            , acknowledge.additionalInfo()
                             , syncLogEntry.sync_attempt_update_timestamp()
                             , syncLogEntry.specify_ars_sync_batch_id()
                             , syncLogEntry.ars_asset_guid()

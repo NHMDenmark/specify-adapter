@@ -39,7 +39,7 @@ public record SpecifySyncLogEntry(Long specify_sync_log_id
                 ", specify_modified_date=" + specify_modified_date +
                 ", status=" + status +
                 ", specify_collection_object_attachment_id=" + specify_collection_object_attachment_id +
-                ", additional_info='" + additional_info + '\'' +
+                ", additionalInfo='" + additional_info + '\'' +
                 ", sync_attempt_update_timestamp=" + sync_attempt_update_timestamp +
                 ", specify_ars_sync_batch_id=" + specify_ars_sync_batch_id +
                 ", ars_asset_guid='" + ars_asset_guid + '\'' +

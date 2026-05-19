@@ -46,7 +46,7 @@ public class Sync {
     }
 
     @GET
-    @Path("/batches/{batchId}/entries")
+    @Path("/batches/{batchId}")
     @Produces(MediaType.APPLICATION_JSON)
     @RolesAllowed({SecurityRoles.DEVELOPER, SecurityRoles.ADMIN})
     public List<SpecifySyncLogEntry> listBatchEntries(@PathParam("batchId") Integer batchId,
