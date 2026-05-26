@@ -5,7 +5,7 @@ import com.drew.imaging.ImageProcessingException;
 import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
 import com.drew.metadata.Tag;
-import dk.northtech.dassco_specify_adapter.configuration.AssetServiceConfig;
+import dk.northtech.dassco_specify_adapter.configuration.SpecifyWebAssetServiceConfig;
 import dk.northtech.dassco_specify_adapter.domain.specify.LoginInfo;
 import dk.northtech.dassco_specify_adapter.services.AssetFileService;
 import dk.northtech.dassco_specify_adapter.services.SpecifyEndpointService;
@@ -22,7 +22,6 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.web.bind.annotation.CrossOrigin;
 
@@ -38,15 +37,12 @@ import static jakarta.ws.rs.core.MediaType.*;
 @Path("/")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "Asset Files", description = "Endpoints related to assets' files.")
 public class AssetServerApi {
-    private final AssetServiceConfig assetServiceConfig;
+    private final SpecifyWebAssetServiceConfig specifyWebAssetServiceConfig;
     private final SpecifyEndpointService specifyEndpointService;
     private final AssetFileService assetFileService;
     private final TokenService tokenService;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AssetServerApi.class);
-
-    @Value("${asset-service.tokenRequiredForGet}")
-    private boolean tokenRequiredForGet;
 
     private ServerProperties serverProperties;
 
@@ -54,8 +50,8 @@ public class AssetServerApi {
 
 
     @Inject
-    public AssetServerApi(AssetServiceConfig assetServiceConfig, SpecifyEndpointService specifyEndpointService, AssetFileService assetFileService, TokenService tokenService, ServerProperties serverProperties) {
-        this.assetServiceConfig = assetServiceConfig;
+    public AssetServerApi(SpecifyWebAssetServiceConfig specifyWebAssetServiceConfig, SpecifyEndpointService specifyEndpointService, AssetFileService assetFileService, TokenService tokenService, ServerProperties serverProperties) {
+        this.specifyWebAssetServiceConfig = specifyWebAssetServiceConfig;
         this.specifyEndpointService = specifyEndpointService;
         this.assetFileService = assetFileService;
         this.tokenService = tokenService;
@@ -77,7 +73,7 @@ public class AssetServerApi {
     @Path("static/{path: .+}")
     public Response getStaticFiles(@PathParam("path") String path){
         LOGGER.info("static/{path}");
-        if(!Boolean.parseBoolean(this.assetServiceConfig.allowStaticFileAccess())){
+        if(!Boolean.parseBoolean(this.specifyWebAssetServiceConfig.allowStaticFileAccess())){
             return Response.status(404).build();
         }
 
@@ -128,8 +124,8 @@ public class AssetServerApi {
     @Path("getfileref")
     public Response getFileRef(@QueryParam("coll") String coll, @QueryParam("type") String type, @QueryParam("filename") String filename, @QueryParam("scale") Integer scale){
         LOGGER.info("getfileref");
-        String path = this.assetFileService.pathToUrlPath(type, coll, filename, this.assetServiceConfig.fileFriendlyPostfix(), scale);
-        var response = this.assetFileService.readFilePathFromParkedFiles(coll, type, filename, this.assetServiceConfig.fileFriendlyPostfix(), scale);
+        String path = this.assetFileService.pathToUrlPath(type, coll, filename, this.specifyWebAssetServiceConfig.fileFriendlyPostfix(), scale);
+        var response = this.assetFileService.readFilePathFromParkedFiles(coll, type, filename, this.specifyWebAssetServiceConfig.fileFriendlyPostfix(), scale);
         if(response.statusCode() == 200){
             return Response.status(200).entity(this.hostname + ":" + this.serverProperties.getPort() + "/static/" + path).build();
         }
@@ -143,11 +139,11 @@ public class AssetServerApi {
     @Consumes(MULTIPART_FORM_DATA)
     public Response getFile(@QueryParam("token") String token, @QueryParam("coll") String coll, @QueryParam("type") String type, @QueryParam("filename") String filename, @QueryParam("scale") Integer scale, @QueryParam("downloadname") String downloadName){
         LOGGER.info("fileget");
-        if(this.tokenRequiredForGet) {
+        if(this.specifyWebAssetServiceConfig.tokenRequiredForGet()) {
             this.tokenService.validateToken(token, filename);
         }
 
-        HttpResponse<InputStream> response = assetFileService.readFileFromParkedFiles(coll, type, filename, this.assetServiceConfig.fileFriendlyPostfix(), scale);
+        HttpResponse<InputStream> response = assetFileService.readFileFromParkedFiles(coll, type, filename, this.specifyWebAssetServiceConfig.fileFriendlyPostfix(), scale);
         if(response.statusCode() != 200){
             return Response.status(response.statusCode()).entity(response.body()).build();
         }
@@ -208,7 +204,7 @@ public class AssetServerApi {
             return Response.status(Response.Status.NOT_FOUND).entity(String.format("Unknown collection: %s", coll)).build();
         }
 
-        int status = this.assetFileService.postFileToParkedFiles(file, "originals", coll, store, this.assetServiceConfig.fileFriendlyPostfix());
+        int status = this.assetFileService.postFileToParkedFiles(file, "originals", coll, store, this.specifyWebAssetServiceConfig.fileFriendlyPostfix());
 
         return status == 200 ? Response.status(200).entity("Ok.").header("X-Timestamp", String.valueOf(System.currentTimeMillis())).build() : Response.status(status).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).build();
     }
@@ -220,7 +216,7 @@ public class AssetServerApi {
     @Path("filedelete")
     public Response deleteFile(@FormParam("coll") String coll, @FormParam("filename") String filename){
         LOGGER.info("filedelete");
-        int status = assetFileService.deleteFileFromParkedFiles(coll, filename, this.assetServiceConfig.fileFriendlyPostfix());
+        int status = assetFileService.deleteFileFromParkedFiles(coll, filename, this.specifyWebAssetServiceConfig.fileFriendlyPostfix());
         return Response.status(status).entity(status == 200 ? "Ok." : "").build();
     }
 
@@ -231,10 +227,10 @@ public class AssetServerApi {
     @Path("getmetadata")
     public Response getMetadata(@QueryParam("token") String token, @QueryParam("filename") String filename, @QueryParam("coll") String coll, @QueryParam("dt") String dt){
         LOGGER.info("getmetadata");
-        if(this.tokenRequiredForGet) {
+        if(this.specifyWebAssetServiceConfig.tokenRequiredForGet()) {
             this.tokenService.validateToken(token, filename);
         }
-        HttpResponse<InputStream> response = assetFileService.readFileFromParkedFiles(coll, "O", filename, this.assetServiceConfig.fileFriendlyPostfix(), null);
+        HttpResponse<InputStream> response = assetFileService.readFileFromParkedFiles(coll, "O", filename, this.specifyWebAssetServiceConfig.fileFriendlyPostfix(), null);
         if(response.statusCode() != 200){
             return Response.status(response.statusCode()).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity(response.body()).build();
         }
