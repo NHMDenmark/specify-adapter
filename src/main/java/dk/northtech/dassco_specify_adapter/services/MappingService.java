@@ -544,7 +544,7 @@ public class MappingService {
                 .replace("\n", "${split}");
         //This uses a bruteforce way by replacing all viable placeholders
         String baseAsset = template.replace("${file_format}", asset.file_formats.isEmpty() ? "" : asset.file_formats.getFirst().toLowerCase())
-                .replace("${assetGuid}", asset.asset_guid)
+                .replace("${asset_guid}", asset.asset_guid)
                 .replace("${asset_pid}", asset.asset_pid)
                 .replace("${make_public}", String.valueOf(asset.make_public))
                 .replace("${date_asset_deleted_ars}", formatDate(asset.date_asset_deleted_ars))
