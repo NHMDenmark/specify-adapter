@@ -7,6 +7,8 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import dk.northtech.dassco_specify_adapter.AMQP.QueueBroadcaster;
 import dk.northtech.dassco_specify_adapter.domain.*;
 import dk.northtech.dassco_specify_adapter.domain.specify.CollectionObjectAttachment;
+import dk.northtech.dassco_specify_adapter.domain.specify.LoginInfo;
+import dk.northtech.dassco_specify_adapter.domain.specify.SpecifyCollectionLogin;
 import dk.northtech.dassco_specify_adapter.domain.sync.*;
 import dk.northtech.dassco_specify_adapter.repository.SpecifyArsSyncRepository;
 import jakarta.inject.Inject;
@@ -23,6 +25,7 @@ import java.util.*;
 @Service
 public class SpecifySyncService {
     private static final Logger log = LoggerFactory.getLogger(SpecifySyncService.class);
+    private static final String VASCULAR_PLANTS_COLLECTION = "NHMD Vascular Plants";
     private final QueueBroadcaster queueBroadcaster;
     private final SpecifyEndpointService specifyEndpointService;
     private final MappingService mappingService;
@@ -206,6 +209,24 @@ public class SpecifySyncService {
         return normalized;
     }
 
+    private String mergeGuidWithPreviousFileEnding(String incomingAssetGuid, String existingSyncLogAssetGuid) {
+        if (incomingAssetGuid == null) {
+            return null;
+        }
+        if (existingSyncLogAssetGuid == null || existingSyncLogAssetGuid.isBlank()) {
+            return incomingAssetGuid;
+        }
+        int lastDotIndex = existingSyncLogAssetGuid.lastIndexOf('.');
+        if (lastDotIndex <= 0 || lastDotIndex == existingSyncLogAssetGuid.length() - 1) {
+            return incomingAssetGuid;
+        }
+        String ending = existingSyncLogAssetGuid.substring(lastDotIndex + 1).trim();
+        if (ending.isEmpty()) {
+            return incomingAssetGuid;
+        }
+        return incomingAssetGuid + "." + ending;
+    }
+
     public void handleAcknowledge(SyncAcknowledge acknowledge) {
         jdbi.withHandle(h -> {
             int countNotStarted = 0;
@@ -222,6 +243,36 @@ public class SpecifySyncService {
                 SpecifySyncLogEntry syncLogEntry = entry;
                 log.info("Found SyncLogEntry {}", syncLogEntry);
                 if (entry.specify_sync_log_id().equals(acknowledge.specifySyncLogId())) {
+                    log.info("Found matching synclog");
+                    log.info("Icoming guid {}", acknowledge.assetGuid());
+
+                    String incomingAssetGuid = normalizeArsAssetGuidForSyncLog(acknowledge.assetGuid());
+                    String syncLogAssetGuid = syncLogEntry.ars_asset_guid();
+                    log.info("Found incoming asset guid: {}", incomingAssetGuid);
+                    log.info("Found synclog asset guid: {}", syncLogAssetGuid);
+                    if (incomingAssetGuid != null && !Objects.equals(syncLogAssetGuid, incomingAssetGuid)) {
+                        log.info("Guid is different from incoming asset guid {}", incomingAssetGuid);
+                        if (syncLogEntry.specify_collection_object_attachment_id() != null) {
+                            log.info("Updateting collection object attachment");
+
+                            CollectionObjectAttachment updatedAttachment = updateSpecifyAttachmentGuid(syncLogEntry.specify_collection_object_attachment_id(), incomingAssetGuid);
+                            if (updatedAttachment != null && updatedAttachment.attachment != null && updatedAttachment.attachment.timestampmodified != null) {
+
+                                Instant modifiedTimestamp = Instant.from(specifyDateFormat.parse(updatedAttachment.attachment.timestampmodified));
+                                syncRepository.insertSyncLog(new SpecifySyncLogEntry(
+                                        null,
+                                        modifiedTimestamp,
+                                        SpecifySyncStatus.SUCCEEDED,
+                                        syncLogEntry.specify_collection_object_attachment_id(),
+                                        null,
+                                        Instant.now(),
+                                        null,
+                                        incomingAssetGuid,
+                                        SyncDirection.ARS_TO_SPECIFY
+                                ));
+                            }
+                        }
+                    }
                     syncLogEntry = new SpecifySyncLogEntry(syncLogEntry.specify_sync_log_id()
                             , syncLogEntry.specify_modified_date()
                             , acknowledge.specifySyncStatus()
@@ -255,6 +306,28 @@ public class SpecifySyncService {
             }
             return h;
         });
+    }
+
+
+    private CollectionObjectAttachment updateSpecifyAttachmentGuid(Long specifyCollectionObjectAttachmentId, String incomingAssetGuid) {
+        LoginInfo loginInfo = specifyEndpointService.login();
+        Integer specifyCollectionId = loginInfo.collections.get(VASCULAR_PLANTS_COLLECTION);
+        if (specifyCollectionId == null) {
+            throw new RuntimeException("No collection was found in specify");
+        }
+        SpecifyCollectionLogin specifyLogin = specifyEndpointService.loginToCollection(specifyCollectionId, loginInfo.csrftoken);
+        CollectionObjectAttachment collectionObjectAttachment = specifyEndpointService.getSpecifyObject(
+                specifyLogin,
+                "/api/specify/collectionobjectattachment/" + specifyCollectionObjectAttachmentId + "/",
+                CollectionObjectAttachment.class
+        );
+        if (collectionObjectAttachment.attachment == null) {
+            throw new RuntimeException("No attachment was found on collectionObjectAttachment " + specifyCollectionObjectAttachmentId);
+        }
+
+        String updatedAssetGuid = mergeGuidWithPreviousFileEnding(incomingAssetGuid, collectionObjectAttachment.attachment.attachmentlocation);
+        collectionObjectAttachment.attachment.attachmentlocation = updatedAssetGuid;
+        return specifyEndpointService.putCollectionObjectAttachment(collectionObjectAttachment, specifyLogin);
     }
 
     public Optional<SpecifyArsSyncBatch> getLatestSuccessfulBatch() {

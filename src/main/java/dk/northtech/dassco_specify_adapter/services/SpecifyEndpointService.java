@@ -167,7 +167,7 @@ public class SpecifyEndpointService {
     private UploadParams tombstoneAttachment(SpecifyCollectionLogin specifyLogin, CollectionObjectAttachment attachmentToUpdate, Asset arsAsset) {
         String token = keycloakService.getUserServiceToken();
         // 6: Get files in ERDA:
-//        List<String> files = assetFileService.getAssetFiles(arsAsset.asset_guid, token);
+//        List<String> files = assetFileService.getAssetFiles(arsAsset.assetGuid, token);
 //        files.forEach(s -> logger.info("Asset has file: {}", s));
         // 7: Sanitize the list of files to only get the filenames:
         String fileName = arsAsset.asset_guid + "-tombstone.json";

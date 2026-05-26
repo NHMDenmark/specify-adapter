@@ -100,7 +100,7 @@ class SpecifySyncServiceTest {
             Long syncLogId = repository.insertSyncLog(test2);
             List<SpecifySyncLogEntry> syncLog = repository.getSyncLog(id);
             assertThat(syncLog.size()).isEqualTo(2);
-            specifySyncService.handleAcknowledge(new SyncAcknowledge(SpecifySyncStatus.SUCCEEDED, syncLogId, "Great success", "gwid"));
+            specifySyncService.handleAcknowledge(new SyncAcknowledge(SpecifySyncStatus.SUCCEEDED, syncLogId, "Great success", null));
             SpecifyArsSyncBatch latestNonFailed = repository.getLatestNonFailed();
             assertThat(latestNonFailed.status()).isEqualTo(SpecifyArsSyncBatchStatus.FAILED_ENTRIES);
             return x;
@@ -119,7 +119,7 @@ class SpecifySyncServiceTest {
             Long syncLogId = repository.insertSyncLog(test2);
             List<SpecifySyncLogEntry> syncLog = repository.getSyncLog(id);
             assertThat(syncLog.size()).isEqualTo(2);
-            specifySyncService.handleAcknowledge(new SyncAcknowledge(SpecifySyncStatus.SUCCEEDED, syncLogId, "Great success", "goo-id"));
+            specifySyncService.handleAcknowledge(new SyncAcknowledge(SpecifySyncStatus.SUCCEEDED, syncLogId, "Great success", null));
             SpecifyArsSyncBatch latestNonFailed = repository.getLatestNonFailed();
             assertThat(latestNonFailed.status()).isEqualTo(SpecifyArsSyncBatchStatus.SUCCEEDED);
             return x;

@@ -19,6 +19,7 @@ public class SpecifyArsAcknowledgeQueueListener extends QueueListener {
     ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule()).configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     private final SpecifySyncService specifySyncService;
     private static final Logger log = LoggerFactory.getLogger(SpecifyArsAcknowledgeQueueListener.class);
+
     @Inject
     public SpecifyArsAcknowledgeQueueListener(KeycloakService keycloakService, AMQPConfig amqpConfig, SpecifySyncService specifySyncService) {
         super(keycloakService, amqpConfig, amqpConfig.specifyArsSyncAcknowledgeQueueName());
