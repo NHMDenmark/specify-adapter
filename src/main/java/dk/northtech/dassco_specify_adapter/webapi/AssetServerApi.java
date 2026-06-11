@@ -22,6 +22,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.web.bind.annotation.CrossOrigin;
 
@@ -46,7 +47,8 @@ public class AssetServerApi {
 
     private ServerProperties serverProperties;
 
-    String hostname = "host.docker.internal";
+    @Value("${specify-bridge.rootUrl}")
+    String hostname;
 
 
     @Inject
@@ -297,13 +299,13 @@ public class AssetServerApi {
         String xml = """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <urls>
-                    <url type="read"><![CDATA[http://{{host}}:{{serverPort}}/fileget]]></url>
-                    <url type="write"><![CDATA[http://{{host}}:{{serverPort}}/fileupload]]></url>
-                    <url type="delete"><![CDATA[http://{{host}}:{{serverPort}}/filedelete]]></url>
-                    <url type="getmetadata"><![CDATA[http://{{host}}:{{serverPort}}/getmetadata]]></url>
-                    <url type="testkey">http://{{host}}:{{serverPort}}/testkey</url>
+                    <url type="read"><![CDATA[{{host}}/fileget]]></url>
+                    <url type="write"><![CDATA[{{host}}/fileupload]]></url>
+                    <url type="delete"><![CDATA[{{host}}/filedelete]]></url>
+                    <url type="getmetadata"><![CDATA[{{host}}/getmetadata]]></url>
+                    <url type="testkey">{{host}}/testkey</url>
                 </urls>
-                """.replace("{{host}}", hostname).replace("{{serverPort}}", this.serverProperties.getPort().toString());
+                """.replace("{{host}}", hostname);
         return Response.status(Response.Status.OK).entity(xml).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).build();
-}
+    }
 }
