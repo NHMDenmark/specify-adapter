@@ -4,7 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "specify-bridge")
 public record ServerConfig(
-        String rootUr
+        String rootUrl
 ) {
 
 }
