@@ -32,6 +32,7 @@ import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.Objects;
 
 import static jakarta.ws.rs.core.MediaType.*;
 
@@ -47,17 +48,17 @@ public class AssetServerApi {
 
     private ServerProperties serverProperties;
 
-    @Value("${specify-bridge.rootUrl}")
-    String hostname;
+    private final String hostname;
 
 
     @Inject
-    public AssetServerApi(SpecifyWebAssetServiceConfig specifyWebAssetServiceConfig, SpecifyEndpointService specifyEndpointService, AssetFileService assetFileService, TokenService tokenService, ServerProperties serverProperties) {
+    public AssetServerApi(SpecifyWebAssetServiceConfig specifyWebAssetServiceConfig, SpecifyEndpointService specifyEndpointService, AssetFileService assetFileService, TokenService tokenService, ServerProperties serverProperties, @Value("${specify-bridge.rootUrl}") String hostname) {
         this.specifyWebAssetServiceConfig = specifyWebAssetServiceConfig;
         this.specifyEndpointService = specifyEndpointService;
         this.assetFileService = assetFileService;
         this.tokenService = tokenService;
         this.serverProperties = serverProperties;
+        this.hostname = hostname;
     }
 
     @GET
