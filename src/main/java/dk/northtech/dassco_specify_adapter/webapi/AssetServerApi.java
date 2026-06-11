@@ -5,6 +5,7 @@ import com.drew.imaging.ImageProcessingException;
 import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
 import com.drew.metadata.Tag;
+import dk.northtech.dassco_specify_adapter.configuration.ServerConfig;
 import dk.northtech.dassco_specify_adapter.configuration.SpecifyWebAssetServiceConfig;
 import dk.northtech.dassco_specify_adapter.domain.specify.LoginInfo;
 import dk.northtech.dassco_specify_adapter.services.AssetFileService;
@@ -48,17 +49,17 @@ public class AssetServerApi {
 
     private ServerProperties serverProperties;
 
-    private final String hostname;
+    private final ServerConfig serverConfig;
 
 
     @Inject
-    public AssetServerApi(SpecifyWebAssetServiceConfig specifyWebAssetServiceConfig, SpecifyEndpointService specifyEndpointService, AssetFileService assetFileService, TokenService tokenService, ServerProperties serverProperties, @Value("${specify-bridge.rootUrl}") String hostname) {
+    public AssetServerApi(SpecifyWebAssetServiceConfig specifyWebAssetServiceConfig, SpecifyEndpointService specifyEndpointService, AssetFileService assetFileService, TokenService tokenService, ServerProperties serverProperties, ServerConfig serverConfig) {
         this.specifyWebAssetServiceConfig = specifyWebAssetServiceConfig;
         this.specifyEndpointService = specifyEndpointService;
         this.assetFileService = assetFileService;
         this.tokenService = tokenService;
         this.serverProperties = serverProperties;
-        this.hostname = hostname;
+        this.serverConfig = serverConfig;
     }
 
     @GET
@@ -130,7 +131,7 @@ public class AssetServerApi {
         String path = this.assetFileService.pathToUrlPath(type, coll, filename, this.specifyWebAssetServiceConfig.fileFriendlyPostfix(), scale);
         var response = this.assetFileService.readFilePathFromParkedFiles(coll, type, filename, this.specifyWebAssetServiceConfig.fileFriendlyPostfix(), scale);
         if(response.statusCode() == 200){
-            return Response.status(200).entity(this.hostname + ":" + this.serverProperties.getPort() + "/static/" + path).build();
+            return Response.status(200).entity(serverConfig.rootUrl() + "/static/" + path).build();
         }
         return Response.status(response.statusCode()).entity(response.body()).build();
     }
@@ -306,7 +307,7 @@ public class AssetServerApi {
                     <url type="getmetadata"><![CDATA[{{host}}/getmetadata]]></url>
                     <url type="testkey">{{host}}/testkey</url>
                 </urls>
-                """.replace("{{host}}", hostname);
+                """.replace("{{host}}", serverConfig.rootUrl());
         return Response.status(Response.Status.OK).entity(xml).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).build();
     }
 }
