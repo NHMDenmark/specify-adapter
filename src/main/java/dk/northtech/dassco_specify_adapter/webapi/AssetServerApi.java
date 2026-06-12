@@ -32,6 +32,7 @@ import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.*;
 import java.util.Objects;
 
@@ -109,13 +110,13 @@ public class AssetServerApi {
         if(filename != null){
             String encodedName = URLEncoder.encode(filename, StandardCharsets.UTF_8).replace("+", "%20");
             return Response.status(response.statusCode())
-                    .header("X-Timestamp", String.valueOf(System.currentTimeMillis()))
+                    .header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond()))
 //                    .header("Content-Disposition", "inline; filename=*utf-8" + encodedName)
                     .header("Content-Type", new Tika().detect(updatedFileName))
                     .entity(streamingOutput).build();
         }
         return Response.status(200)
-                .header("X-Timestamp", String.valueOf(System.currentTimeMillis()))
+                .header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond()))
                 .header("Content-Disposition", "inline; attachment; filename=*utf-8" + updatedFileName)
                 .header("Content-Type", new Tika().detect(updatedFileName))
                 .entity(streamingOutput).build();
@@ -166,13 +167,13 @@ public class AssetServerApi {
         if(downloadName != null){
             String encodedName = URLEncoder.encode(downloadName, StandardCharsets.UTF_8).replace("+", "%20");
             return Response.status(response.statusCode())
-                    .header("X-Timestamp", String.valueOf(System.currentTimeMillis()))
+                    .header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond()))
                     .header("Content-Disposition", "inline; filename=*utf-8" + encodedName)
                     .header("Content-Type", new Tika().detect(updatedFileName))
                     .entity(streamingOutput).build();
         }
         return Response.status(200)
-                .header("X-Timestamp", String.valueOf(System.currentTimeMillis()))
+                .header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond()))
                 .header("Content-Disposition", "inline; attachment; filename=*utf-8" + updatedFileName)
                 .header("Content-Type", new Tika().detect(updatedFileName))
                 .entity(streamingOutput).build();
@@ -210,7 +211,7 @@ public class AssetServerApi {
 
         int status = this.assetFileService.postFileToParkedFiles(file, "originals", coll, store, this.specifyWebAssetServiceConfig.fileFriendlyPostfix());
 
-        return status == 200 ? Response.status(200).entity("Ok.").header("X-Timestamp", String.valueOf(System.currentTimeMillis())).build() : Response.status(status).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).build();
+        return status == 200 ? Response.status(200).entity("Ok.").header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond())).build() : Response.status(status).header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond())).build();
     }
 
     @POST
@@ -236,7 +237,7 @@ public class AssetServerApi {
         }
         HttpResponse<InputStream> response = assetFileService.readFileFromParkedFiles(coll, "O", filename, this.specifyWebAssetServiceConfig.fileFriendlyPostfix(), null);
         if(response.statusCode() != 200){
-            return Response.status(response.statusCode()).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity(response.body()).build();
+            return Response.status(response.statusCode()).header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond())).entity(response.body()).build();
         }
 
         try (InputStream is = new BufferedInputStream(response.body())) {
@@ -255,9 +256,9 @@ public class AssetServerApi {
             if(Objects.equals(dt, "date")){
                 String dateTimeOriginal = metaMap.get("EXIF DateTimeOriginal");
                 if(dateTimeOriginal != null){
-                    return Response.status(Response.Status.OK).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity(dateTimeOriginal).build();
+                    return Response.status(Response.Status.OK).header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond())).entity(dateTimeOriginal).build();
                 }else{
-                    return Response.status(Response.Status.NOT_FOUND).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity("DateTime not found in EXIF").build();
+                    return Response.status(Response.Status.NOT_FOUND).header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond())).entity("DateTime not found in EXIF").build();
                 }
             }
 
@@ -269,12 +270,12 @@ public class AssetServerApi {
                 jsonArray.put(obj);
             }
 
-            return Response.status(Response.Status.OK).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity(jsonArray.toString()).build();
+            return Response.status(Response.Status.OK).header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond())).entity(jsonArray.toString()).build();
 
 
         } catch (IOException | ImageProcessingException e) {
             LOGGER.error(e.getMessage());
-            return Response.status(Response.Status.OK).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).build();
+            return Response.status(Response.Status.OK).header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond())).build();
 
         }
     }
@@ -308,6 +309,6 @@ public class AssetServerApi {
                     <url type="testkey">{{host}}/testkey</url>
                 </urls>
                 """.replace("{{host}}", serverConfig.rootUrl());
-        return Response.status(Response.Status.OK).entity(xml).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).build();
+        return Response.status(Response.Status.OK).entity(xml).header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond())).build();
     }
 }
