@@ -41,6 +41,7 @@ import static jakarta.ws.rs.core.MediaType.*;
 @Path("/")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "Asset Files", description = "Endpoints related to assets' files.")
 public class AssetServerApi {
+    private static final String TIMESTAMP_HEADER = "X-Timestamp";
     private final SpecifyWebAssetServiceConfig specifyWebAssetServiceConfig;
     private final SpecifyEndpointService specifyEndpointService;
     private final AssetFileService assetFileService;
@@ -110,13 +111,13 @@ public class AssetServerApi {
         if(filename != null){
             String encodedName = URLEncoder.encode(filename, StandardCharsets.UTF_8).replace("+", "%20");
             return Response.status(response.statusCode())
-                    .header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond()))
+                    .header(TIMESTAMP_HEADER, currentTimestampSeconds())
 //                    .header("Content-Disposition", "inline; filename=*utf-8" + encodedName)
                     .header("Content-Type", new Tika().detect(updatedFileName))
                     .entity(streamingOutput).build();
         }
         return Response.status(200)
-                .header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond()))
+                .header(TIMESTAMP_HEADER, currentTimestampSeconds())
                 .header("Content-Disposition", "inline; attachment; filename=*utf-8" + updatedFileName)
                 .header("Content-Type", new Tika().detect(updatedFileName))
                 .entity(streamingOutput).build();
@@ -167,13 +168,13 @@ public class AssetServerApi {
         if(downloadName != null){
             String encodedName = URLEncoder.encode(downloadName, StandardCharsets.UTF_8).replace("+", "%20");
             return Response.status(response.statusCode())
-                    .header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond()))
+                    .header(TIMESTAMP_HEADER, currentTimestampSeconds())
                     .header("Content-Disposition", "inline; filename=*utf-8" + encodedName)
                     .header("Content-Type", new Tika().detect(updatedFileName))
                     .entity(streamingOutput).build();
         }
         return Response.status(200)
-                .header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond()))
+                .header(TIMESTAMP_HEADER, currentTimestampSeconds())
                 .header("Content-Disposition", "inline; attachment; filename=*utf-8" + updatedFileName)
                 .header("Content-Type", new Tika().detect(updatedFileName))
                 .entity(streamingOutput).build();
@@ -211,7 +212,7 @@ public class AssetServerApi {
 
         int status = this.assetFileService.postFileToParkedFiles(file, "originals", coll, store, this.specifyWebAssetServiceConfig.fileFriendlyPostfix());
 
-        return status == 200 ? Response.status(200).entity("Ok.").header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond())).build() : Response.status(status).header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond())).build();
+        return status == 200 ? Response.status(200).entity("Ok.").header(TIMESTAMP_HEADER, currentTimestampSeconds()).build() : Response.status(status).header(TIMESTAMP_HEADER, currentTimestampSeconds()).build();
     }
 
     @POST
@@ -222,7 +223,7 @@ public class AssetServerApi {
     public Response deleteFile(@FormParam("coll") String coll, @FormParam("filename") String filename){
         LOGGER.info("filedelete");
         int status = assetFileService.deleteFileFromParkedFiles(coll, filename, this.specifyWebAssetServiceConfig.fileFriendlyPostfix());
-        return Response.status(status).entity(status == 200 ? "Ok." : "").build();
+        return Response.status(status).header(TIMESTAMP_HEADER, currentTimestampSeconds()).entity(status == 200 ? "Ok." : "").build();
     }
 
     @GET
@@ -237,7 +238,7 @@ public class AssetServerApi {
         }
         HttpResponse<InputStream> response = assetFileService.readFileFromParkedFiles(coll, "O", filename, this.specifyWebAssetServiceConfig.fileFriendlyPostfix(), null);
         if(response.statusCode() != 200){
-            return Response.status(response.statusCode()).header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond())).entity(response.body()).build();
+            return Response.status(response.statusCode()).header(TIMESTAMP_HEADER, currentTimestampSeconds()).entity(response.body()).build();
         }
 
         try (InputStream is = new BufferedInputStream(response.body())) {
@@ -256,9 +257,9 @@ public class AssetServerApi {
             if(Objects.equals(dt, "date")){
                 String dateTimeOriginal = metaMap.get("EXIF DateTimeOriginal");
                 if(dateTimeOriginal != null){
-                    return Response.status(Response.Status.OK).header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond())).entity(dateTimeOriginal).build();
+                    return Response.status(Response.Status.OK).header(TIMESTAMP_HEADER, currentTimestampSeconds()).entity(dateTimeOriginal).build();
                 }else{
-                    return Response.status(Response.Status.NOT_FOUND).header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond())).entity("DateTime not found in EXIF").build();
+                    return Response.status(Response.Status.NOT_FOUND).header(TIMESTAMP_HEADER, currentTimestampSeconds()).entity("DateTime not found in EXIF").build();
                 }
             }
 
@@ -270,12 +271,12 @@ public class AssetServerApi {
                 jsonArray.put(obj);
             }
 
-            return Response.status(Response.Status.OK).header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond())).entity(jsonArray.toString()).build();
+            return Response.status(Response.Status.OK).header(TIMESTAMP_HEADER, currentTimestampSeconds()).entity(jsonArray.toString()).build();
 
 
         } catch (IOException | ImageProcessingException e) {
             LOGGER.error(e.getMessage());
-            return Response.status(Response.Status.OK).header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond())).build();
+            return Response.status(Response.Status.OK).header(TIMESTAMP_HEADER, currentTimestampSeconds()).build();
 
         }
     }
@@ -289,7 +290,7 @@ public class AssetServerApi {
         LOGGER.info("testkey");
         //overrides -> tokenRequiredForGet
         this.tokenService.validateToken(token, random);
-        return Response.status(Response.Status.OK).entity("Ok.").build();
+        return Response.status(Response.Status.OK).header(TIMESTAMP_HEADER, currentTimestampSeconds()).entity("Ok.").build();
     }
 
     @GET
@@ -309,6 +310,10 @@ public class AssetServerApi {
                     <url type="testkey">{{host}}/testkey</url>
                 </urls>
                 """.replace("{{host}}", serverConfig.rootUrl());
-        return Response.status(Response.Status.OK).entity(xml).header("X-Timestamp", String.valueOf(Instant.now().getEpochSecond())).build();
+        return Response.status(Response.Status.OK).entity(xml).header(TIMESTAMP_HEADER, currentTimestampSeconds()).build();
+    }
+
+    private String currentTimestampSeconds() {
+        return String.valueOf(Instant.now().getEpochSecond());
     }
 }

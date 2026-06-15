@@ -13,11 +13,13 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.Formatter;
 
 @Service
 public class TokenService {
     private static final Logger LOGGER = LoggerFactory.getLogger(TokenService.class);
+    private static final String TIMESTAMP_HEADER = "X-Timestamp";
     SpecifyWebAssetServiceConfig specifyWebAssetServiceConfig;
 
     @Inject
@@ -51,23 +53,34 @@ public class TokenService {
     public void validateToken(String token, String filename) {
         if(this.specifyWebAssetServiceConfig.tokenKey() == null) return;
         if(token.isEmpty()){
-            throw new WebApplicationException(Response.status(Response.Status.FORBIDDEN).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity("Auth token is missing.").build());
+            throw forbidden("Auth token is missing.");
         }
         if (!token.contains(":")){
-            throw new WebApplicationException(Response.status(Response.Status.FORBIDDEN).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity("Auth token is malformed.").build());
+            throw forbidden("Auth token is malformed.");
         }
         String[] tokenParts = token.split(":");
         Long tokenTimeStamp = Long.parseLong(tokenParts[1]);
-        Long currentTime = System.currentTimeMillis();
+        Long currentTime = currentTimestampSeconds();
 
         if(this.specifyWebAssetServiceConfig.tokenTimeToleranceSeconds() != null){
-            if((Math.abs(currentTime - tokenTimeStamp) > (this.specifyWebAssetServiceConfig.tokenTimeToleranceSeconds() * 1000))){
-                throw new WebApplicationException(Response.status(Response.Status.FORBIDDEN).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity("Auth token timestamp out of range: %s vs %s".formatted(currentTime, tokenTimeStamp)).build());
+            if(Math.abs(currentTime - tokenTimeStamp) > this.specifyWebAssetServiceConfig.tokenTimeToleranceSeconds()){
+                throw forbidden("Auth token timestamp out of range: %s vs %s".formatted(tokenTimeStamp, currentTime));
             }
         }
         if(!token.equals(this.generateToken(String.valueOf(tokenTimeStamp), filename))){
-            throw new WebApplicationException(Response.status(Response.Status.FORBIDDEN).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity("Auth token is invalid.").build());
+            throw forbidden("Auth token is invalid.");
         }
 
+    }
+
+    private WebApplicationException forbidden(String message) {
+        return new WebApplicationException(Response.status(Response.Status.FORBIDDEN)
+                .header(TIMESTAMP_HEADER, String.valueOf(currentTimestampSeconds()))
+                .entity(message)
+                .build());
+    }
+
+    private long currentTimestampSeconds() {
+        return Instant.now().getEpochSecond();
     }
 }
