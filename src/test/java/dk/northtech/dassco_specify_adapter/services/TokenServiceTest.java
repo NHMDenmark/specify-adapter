@@ -43,4 +43,13 @@ class TokenServiceTest {
                         Long.parseLong(exception.getResponse().getHeaderString("X-Timestamp"))));
         assertThat(exception.getResponse().getHeaderString("X-Timestamp")).matches("\\d{10}");
     }
+
+    @Test
+    void rejectsMissingToken() {
+        WebApplicationException exception = assertThrows(WebApplicationException.class,
+                () -> tokenService.validateToken(null, "file.jpg"));
+
+        assertThat(exception.getResponse().getStatus()).isEqualTo(403);
+        assertThat(exception.getResponse().getEntity()).isEqualTo("Auth token is missing.");
+    }
 }

@@ -52,7 +52,7 @@ public class TokenService {
 
     public void validateToken(String token, String filename) {
         if(this.specifyWebAssetServiceConfig.tokenKey() == null) return;
-        if(token.isEmpty()){
+        if(token == null || token.isEmpty()){
             throw forbidden("Auth token is missing.");
         }
         if (!token.contains(":")){

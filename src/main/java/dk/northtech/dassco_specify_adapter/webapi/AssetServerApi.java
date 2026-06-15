@@ -218,12 +218,37 @@ public class AssetServerApi {
     @POST
     @Operation(summary = "Deletes a file in the parking spot in the File Proxy")
     @ApiResponse(responseCode = "200", description = "Ok.")
+    @Consumes(APPLICATION_FORM_URLENCODED)
     @Produces("text/plain;charset=UTF-8")
     @Path("filedelete")
-    public Response deleteFile(@FormParam("coll") String coll, @FormParam("filename") String filename){
+    public Response deleteFile(@FormParam("coll") String coll, @FormParam("filename") String filename, @FormParam("token") String token){
         LOGGER.info("filedelete");
-        int status = assetFileService.deleteFileFromParkedFiles(coll, filename, this.specifyWebAssetServiceConfig.fileFriendlyPostfix());
-        return Response.status(status).header(TIMESTAMP_HEADER, currentTimestampSeconds()).entity(status == 200 ? "Ok." : "").build();
+        if (coll == null || coll.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .header(TIMESTAMP_HEADER, currentTimestampSeconds())
+                    .entity("Missing required form field: coll")
+                    .build();
+        }
+        if (filename == null || filename.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .header(TIMESTAMP_HEADER, currentTimestampSeconds())
+                    .entity("Missing required form field: filename")
+                    .build();
+        }
+
+        this.tokenService.validateToken(token, filename);
+
+        try {
+            int status = assetFileService.deleteFileFromParkedFiles(coll, filename, this.specifyWebAssetServiceConfig.fileFriendlyPostfix());
+            String entity = status == 200 ? "Ok." : status == 404 ? "Not found." : "Deletion failed with status: " + status;
+            return Response.status(status).header(TIMESTAMP_HEADER, currentTimestampSeconds()).entity(entity).build();
+        } catch (RuntimeException e) {
+            LOGGER.error("filedelete failed for coll {} filename {}", coll, filename, e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .header(TIMESTAMP_HEADER, currentTimestampSeconds())
+                    .entity("Deletion failed: " + e.getMessage())
+                    .build();
+        }
     }
 
     @GET
