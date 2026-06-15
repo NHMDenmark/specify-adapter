@@ -11,13 +11,15 @@ public record Acknowledge(
         List<AssetSpecimen> specimensWithSpecifyIds) {
 
 
+
     @Override
     public String toString() {
         return "Acknowledge{" +
-               "assetGuid='" + asset_guid + '\'' +
-               ", status=" + status +
-               ", message='" + message + '\'' +
-               ", date=" + date +
-               '}';
+                "asset_guid='" + asset_guid + '\'' +
+                ", status=" + status +
+                ", message='" + message + '\'' +
+                ", date=" + date +
+                ", specimensWithSpecifyIds=" + specimensWithSpecifyIds +
+                '}';
     }
 }
