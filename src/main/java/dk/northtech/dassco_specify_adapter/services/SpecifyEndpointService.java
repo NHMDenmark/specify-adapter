@@ -262,7 +262,6 @@ public class SpecifyEndpointService {
 
 
     public void moveValuesToExisting(Attachment withARSValues, Attachment fromSpecify) {
-        fromSpecify.remarks = withARSValues.remarks;
         fromSpecify.mimetype = withARSValues.mimetype;
         fromSpecify.origfilename = withARSValues.origfilename;
         fromSpecify.title = withARSValues.title;
