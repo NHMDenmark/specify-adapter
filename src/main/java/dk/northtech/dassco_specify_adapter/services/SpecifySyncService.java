@@ -46,13 +46,15 @@ public class SpecifySyncService {
     }
 
 
-    public void sync(String arsUpdateJson) {
-        ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule()).configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+    public void arsToSpecifySync(String arsUpdateJson) {
+        ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule())
+                //We do not control what specify returns so this is set to false to avoid breaking the application if Specify adds a field.
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         try {
             ARSUpdate arsUpdate = mapper.readValue(arsUpdateJson, ARSUpdate.class);
             try {
                 CollectionObjectAttachment attachment = mappingService.getAttachment(arsUpdate.asset);
-                List<AssetSpecimen> specimen = specifyEndpointService.pushAssetToSpecify(attachment, arsUpdate.asset, arsUpdate.deleteAttachment);
+                List<AssetSpecimen> specimen = specifyEndpointService.pushAssetToSpecify(attachment, arsUpdate.asset);
                 Instant syncTimestamp = Instant.now();
                 jdbi.withHandle(handle -> {
                     SpecifyArsSyncRepository repository = handle.attach(SpecifyArsSyncRepository.class);
@@ -76,7 +78,6 @@ public class SpecifySyncService {
                     }
                     return handle;
                 });
-//                2026-02-03T05:09:29
                 queueBroadcaster.sendMessage(new Acknowledge(arsUpdate.asset.asset_guid, AcknowledgeStatus.SUCCESS, null, syncTimestamp, specimen));
             } catch (SpecifyAdapterException spx) {
                 queueBroadcaster.sendMessage(new Acknowledge(arsUpdate.asset.asset_guid, spx.status(), spx.getMessage(), Instant.now(), null));
