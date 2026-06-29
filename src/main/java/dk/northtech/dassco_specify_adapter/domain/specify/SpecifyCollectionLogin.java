@@ -4,7 +4,6 @@ public record SpecifyCollectionLogin(
         String sessionid,
         String csrftoken,
         String collection,
-        String rootUrl,
-        String assetServerUrl
+        String rootUrl
 ) {
 }

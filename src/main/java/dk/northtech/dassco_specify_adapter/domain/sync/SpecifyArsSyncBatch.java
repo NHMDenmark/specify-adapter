@@ -8,6 +8,7 @@ import java.util.List;
 public record SpecifyArsSyncBatch(Integer specify_ars_sync_batch_id, Instant batch_timestamp,
                                   Instant specify_from_timestamp, Instant specify_to_timestamp,
                                   SpecifyArsSyncBatchStatus status, String additional_info,
+                                  Long collectionId,
                                   List<SpecifySyncLogEntry> entries) {
 
     @JdbiConstructor
@@ -17,6 +18,16 @@ public record SpecifyArsSyncBatch(Integer specify_ars_sync_batch_id, Instant bat
             , Instant specify_to_timestamp
             , SpecifyArsSyncBatchStatus status
             , String additional_info) {
-        this(specify_ars_sync_batch_id, batch_timestamp, specify_from_timestamp, specify_to_timestamp, status, additional_info, List.of());
+        this(specify_ars_sync_batch_id, batch_timestamp, specify_from_timestamp, specify_to_timestamp, status, additional_info, null, List.of());
+    }
+
+    public SpecifyArsSyncBatch(Integer specify_ars_sync_batch_id
+            , Instant batch_timestamp
+            , Instant specify_from_timestamp
+            , Instant specify_to_timestamp
+            , SpecifyArsSyncBatchStatus status
+            , String additional_info
+            , Long collectionId) {
+        this(specify_ars_sync_batch_id, batch_timestamp, specify_from_timestamp, specify_to_timestamp, status, additional_info, collectionId, List.of());
     }
 }

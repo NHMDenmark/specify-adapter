@@ -252,16 +252,16 @@ public class SpecifyEndpointService {
     }
 
     public SpecifyCollectionLogin loginToCollection(int collection, String csrfToken) {
-        return loginToCollection(collection, csrfToken, this.specifyProperties.rootUrl(), this.specifyProperties.username(), this.specifyProperties.password(), this.specifyProperties.assetServer());
+        return loginToCollection(collection, csrfToken, this.specifyProperties.rootUrl(), this.specifyProperties.username(), this.specifyProperties.password());
     }
 
     public SpecifyCollectionLogin loginToCollection(Long institutionId, int collection, String csrfToken) {
         InstitutionConfigCredentials credentials = institutionConfigCredentialsService.getInstitutionConfigCredentials(institutionId)
                 .orElseThrow(() -> new IllegalArgumentException("Institution config " + institutionId + " has no stored Specify credentials"));
-        return loginToCollection(collection, csrfToken, credentials.specifyRootUrl(), credentials.specifyUsername(), credentials.specifyPassword(), credentials.specifyAssetServerUrl());
+        return loginToCollection(collection, csrfToken, credentials.specifyRootUrl(), credentials.specifyUsername(), credentials.specifyPassword());
     }
 
-    private SpecifyCollectionLogin loginToCollection(int collection, String csrfToken, String rootUrl, String username, String password, String assetServerUrl) {
+    private SpecifyCollectionLogin loginToCollection(int collection, String csrfToken, String rootUrl, String username, String password) {
 
         CookieManager cookieManager = new CookieManager();
         cookieManager.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
@@ -311,7 +311,7 @@ public class SpecifyEndpointService {
                         collectionIdAsString = cookie.getValue();
                     }
                 }
-                return new SpecifyCollectionLogin(sessionId, newCsrfToken, collectionIdAsString, rootUrl, assetServerUrl);
+                return new SpecifyCollectionLogin(sessionId, newCsrfToken, collectionIdAsString, rootUrl);
             } else if (response.statusCode() == 403) {
                 throw new RuntimeException("Forbidden. There has been a problem logging into the Collection. Most likely scenario is the CSRF Token being wrong.");
             }

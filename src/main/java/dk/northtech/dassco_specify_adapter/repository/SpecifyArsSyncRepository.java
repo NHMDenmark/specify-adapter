@@ -15,16 +15,65 @@ import java.util.List;
 
 public interface SpecifyArsSyncRepository extends SqlObject {
     @GetGeneratedKeys
-    @SqlUpdate("INSERT INTO specify_ars_sync_batch (batch_timestamp, specify_from_timestamp, specify_to_timestamp, status, additional_info) VALUES (:batch_timestamp,:specify_from_timestamp,:specify_to_timestamp,:status,:additional_info)")
+    @SqlUpdate("INSERT INTO specify_ars_sync_batch (batch_timestamp, specify_from_timestamp, specify_to_timestamp, status, additional_info, collection_id) VALUES (:batch_timestamp,:specify_from_timestamp,:specify_to_timestamp,:status,:additional_info, :collectionId)")
     Integer createNewBatch(@BindMethods SpecifyArsSyncBatch batch);
 
-    @SqlQuery("SELECT * FROM specify_ars_sync_batch WHERE status IN ('FAILED_ENTRIES', 'SUCCEEDED', 'STARTED') ORDER BY specify_to_timestamp DESC LIMIT 1")
+    @SqlQuery("""
+            SELECT specify_ars_sync_batch_id,
+                   batch_timestamp,
+                   specify_from_timestamp,
+                   specify_to_timestamp,
+                   status,
+                   additional_info,
+                   collection_id AS collectionId
+            FROM specify_ars_sync_batch
+            WHERE collection_id = :collectionId
+              AND status IN ('FAILED_ENTRIES', 'SUCCEEDED', 'STARTED')
+            ORDER BY specify_to_timestamp DESC
+            LIMIT 1
+            """)
+    SpecifyArsSyncBatch getLatestNonFailedByCollectionId(@Bind("collectionId") Long collectionId);
+
+    @SqlQuery("""
+            SELECT specify_ars_sync_batch_id,
+                   batch_timestamp,
+                   specify_from_timestamp,
+                   specify_to_timestamp,
+                   status,
+                   additional_info,
+                   collection_id AS collectionId
+            FROM specify_ars_sync_batch
+            WHERE status IN ('FAILED_ENTRIES', 'SUCCEEDED', 'STARTED')
+            ORDER BY specify_to_timestamp DESC
+            LIMIT 1
+            """)
     SpecifyArsSyncBatch getLatestNonFailed();
 
-    @SqlQuery("SELECT * FROM specify_ars_sync_batch ORDER BY batch_timestamp DESC")
+    @SqlQuery("""
+            SELECT specify_ars_sync_batch_id,
+                   batch_timestamp,
+                   specify_from_timestamp,
+                   specify_to_timestamp,
+                   status,
+                   additional_info,
+                   collection_id AS collectionId
+            FROM specify_ars_sync_batch
+            ORDER BY batch_timestamp DESC
+            """)
     List<SpecifyArsSyncBatch> getSyncBatches();
 
-    @SqlQuery("SELECT * FROM specify_ars_sync_batch ORDER BY batch_timestamp DESC LIMIT :limit OFFSET :offset")
+    @SqlQuery("""
+            SELECT specify_ars_sync_batch_id,
+                   batch_timestamp,
+                   specify_from_timestamp,
+                   specify_to_timestamp,
+                   status,
+                   additional_info,
+                   collection_id AS collectionId
+            FROM specify_ars_sync_batch
+            ORDER BY batch_timestamp DESC
+            LIMIT :limit OFFSET :offset
+            """)
     List<SpecifyArsSyncBatch> getSyncBatchesPaged(@Bind Integer limit, @Bind Integer offset);
 
     @GetGeneratedKeys
@@ -32,38 +81,50 @@ public interface SpecifyArsSyncRepository extends SqlObject {
             INSERT INTO specify_sync_log(specify_modified_date
                         , status
                         , specify_collection_object_attachment_id
-                        , additional_info
-                        , sync_attempt_update_timestamp
-                        , specify_ars_sync_batch_id
-                        , ars_asset_guid
-                        , sync_direction)
-                        VALUES (:specify_modified_date
-                                    , :status
-                                    , :specify_collection_object_attachment_id
-                                    , :additional_info
-                                    , :sync_attempt_update_timestamp
-                                    , :specify_ars_sync_batch_id
-                                    , :ars_asset_guid
-                                    , :sync_direction)
+                         , additional_info
+                         , sync_attempt_update_timestamp
+                         , specify_ars_sync_batch_id
+                         , collection_id
+                         , ars_asset_guid
+                         , sync_direction)
+                         VALUES (:specify_modified_date
+                                     , :status
+                                     , :specify_collection_object_attachment_id
+                                     , :additional_info
+                                     , :sync_attempt_update_timestamp
+                                     , :specify_ars_sync_batch_id
+                                     , :collectionId
+                                     , :ars_asset_guid
+                                     , :sync_direction)
             
             """)
     Long insertSyncLog(@BindMethods SpecifySyncLogEntry batch);
 
     @SqlQuery("""
-    SELECT * FROM specify_sync_log ssl
+    SELECT specify_sync_log_id,
+           specify_modified_date,
+           status,
+           specify_collection_object_attachment_id,
+           additional_info,
+           sync_attempt_update_timestamp,
+           specify_ars_sync_batch_id,
+           collection_id AS collectionId,
+           ars_asset_guid,
+           sync_direction
+    FROM specify_sync_log ssl
     WHERE ssl.specify_sync_log_id = :specicy_sync_log_id
-    	OR ssl.specify_ars_sync_batch_id IS NOT NULL
-    	AND ssl.specify_ars_sync_batch_id =
+	OR ssl.specify_ars_sync_batch_id IS NOT NULL
+	AND ssl.specify_ars_sync_batch_id =
     	(SELECT ssl2.specify_ars_sync_batch_id
     		FROM specify_sync_log ssl2
     		WHERE ssl2.specify_sync_log_id = :specicy_sync_log_id)
 """)
     List<SpecifySyncLogEntry> getSyncLogEntriesBySyncLogId(@Bind Long specicy_sync_log_id);
 
-    @SqlQuery("SELECT * FROM specify_sync_log s WHERE s.specify_ars_sync_batch_id = :specify_ars_sync_batch_id")
+    @SqlQuery("SELECT specify_sync_log_id, specify_modified_date, status, specify_collection_object_attachment_id, additional_info, sync_attempt_update_timestamp, specify_ars_sync_batch_id, collection_id AS collectionId, ars_asset_guid, sync_direction FROM specify_sync_log s WHERE s.specify_ars_sync_batch_id = :specify_ars_sync_batch_id")
     List<SpecifySyncLogEntry> getSyncLog(@Bind Integer specify_ars_sync_batch_id);
 
-    @SqlQuery("SELECT * FROM specify_sync_log s WHERE s.specify_ars_sync_batch_id = :specify_ars_sync_batch_id ORDER BY s.specify_sync_log_id DESC LIMIT :limit OFFSET :offset")
+    @SqlQuery("SELECT specify_sync_log_id, specify_modified_date, status, specify_collection_object_attachment_id, additional_info, sync_attempt_update_timestamp, specify_ars_sync_batch_id, collection_id AS collectionId, ars_asset_guid, sync_direction FROM specify_sync_log s WHERE s.specify_ars_sync_batch_id = :specify_ars_sync_batch_id ORDER BY s.specify_sync_log_id DESC LIMIT :limit OFFSET :offset")
     List<SpecifySyncLogEntry> getSyncLogPaged(@Bind Integer specify_ars_sync_batch_id, @Bind Integer limit, @Bind Integer offset);
 
 
@@ -74,6 +135,7 @@ public interface SpecifyArsSyncRepository extends SqlObject {
                                     , additional_info = :additional_info
                                     , sync_attempt_update_timestamp = :sync_attempt_update_timestamp
                                     , specify_ars_sync_batch_id = :specify_ars_sync_batch_id
+                                    , collection_id = :collectionId
                                     , ars_asset_guid = :ars_asset_guid
             WHERE specify_sync_log_id = :specify_sync_log_id                        
             
@@ -91,12 +153,14 @@ public interface SpecifyArsSyncRepository extends SqlObject {
                 SELECT 1
                 FROM specify_sync_log ssl
                 WHERE ssl.specify_collection_object_attachment_id = :specify_collection_object_attachment_id
+                  AND ssl.collection_id = :collectionId
                   AND ssl.sync_direction = 'ARS_TO_SPECIFY'
                   AND ssl.status = 'SUCCEEDED'
                   AND ssl.specify_modified_date BETWEEN :from_timestamp AND :to_timestamp
             )
             """)
     boolean hasArsToSpecifySyncNearTimestamp(@Bind Long specify_collection_object_attachment_id,
+                                             @Bind("collectionId") Long collectionId,
                                              @Bind("from_timestamp") Instant fromTimestamp,
                                              @Bind("to_timestamp") Instant toTimestamp);
 }

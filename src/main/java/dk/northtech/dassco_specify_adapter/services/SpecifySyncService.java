@@ -25,11 +25,11 @@ import java.util.*;
 @Service
 public class SpecifySyncService {
     private static final Logger log = LoggerFactory.getLogger(SpecifySyncService.class);
-    private static final String VASCULAR_PLANTS_COLLECTION = "NHMD Vascular Plants";
     private final QueueBroadcaster queueBroadcaster;
     private final SpecifyEndpointService specifyEndpointService;
     private final MappingService mappingService;
     private final SpecifyQueryService specifyQueryService;
+    private final SpecifyTargetResolverService specifyTargetResolverService;
     private final Jdbi jdbi;
     // Specify timestamps is in the local timezone.
     private final DateTimeFormatter specifyDateFormat = DateTimeFormatter.ISO_LOCAL_DATE_TIME
@@ -37,11 +37,12 @@ public class SpecifySyncService {
     private static final Instant DEFAULT_SYNC_MILLIS = Instant.ofEpochMilli(1767272493000L);
 
     @Inject
-    public SpecifySyncService(QueueBroadcaster queueBroadcaster, SpecifyEndpointService specifyEndpointService, MappingService mappingService, SpecifyQueryService specifyQueryService, Jdbi jdbi) {
+    public SpecifySyncService(QueueBroadcaster queueBroadcaster, SpecifyEndpointService specifyEndpointService, MappingService mappingService, SpecifyQueryService specifyQueryService, SpecifyTargetResolverService specifyTargetResolverService, Jdbi jdbi) {
         this.queueBroadcaster = queueBroadcaster;
         this.specifyEndpointService = specifyEndpointService;
         this.mappingService = mappingService;
         this.specifyQueryService = specifyQueryService;
+        this.specifyTargetResolverService = specifyTargetResolverService;
         this.jdbi = jdbi;
     }
 
@@ -53,6 +54,7 @@ public class SpecifySyncService {
         try {
             ARSUpdate arsUpdate = mapper.readValue(arsUpdateJson, ARSUpdate.class);
             try {
+                ResolvedSpecifyTarget target = specifyTargetResolverService.resolveForAsset(arsUpdate.asset);
                 CollectionObjectAttachment attachment = mappingService.getAttachment(arsUpdate.asset);
                 List<AssetSpecimen> specimen = specifyEndpointService.pushAssetToSpecify(attachment, arsUpdate.asset);
                 Instant syncTimestamp = Instant.now();
@@ -72,6 +74,7 @@ public class SpecifySyncService {
                                 null,
                                 syncTimestamp,
                                 null,
+                                target.collectionConfig().id(),
                                 normalizeArsAssetGuidForSyncLog(arsUpdate.asset.asset_guid),
                                 SyncDirection.ARS_TO_SPECIFY
                         ));
@@ -91,23 +94,26 @@ public class SpecifySyncService {
     }
 
     public void specifyToArsSync() {
-        Optional<SpecifyArsSyncBatch> latestSuccessfulBatch = getLatestSuccessfulBatch();
-        String specifyFromDate = null;
         Instant now = Instant.now();
-        String specifyToDate = specifyDateFormat.format(now);
-
-        Instant fromInstant = null;
-        if (latestSuccessfulBatch.isPresent()) {
-            SpecifyArsSyncBatch batch = latestSuccessfulBatch.get();
-            fromInstant = batch.specify_to_timestamp();
-        } else {
-            fromInstant = DEFAULT_SYNC_MILLIS;
+        for (ResolvedSpecifyTarget target : specifyTargetResolverService.listSpecifyToArsTargets()) {
+            try {
+                syncSpecifyTargetToArs(target, now);
+            } catch (Exception exception) {
+                log.error("Specify to ARS sync failed for institution {} collection {}", target.institutionConfig().name(), target.collectionConfig().name(), exception);
+                createFailedBatch(target.collectionConfig().id(), now, exception.getMessage());
+            }
         }
-        specifyFromDate = specifyDateFormat.format(fromInstant);
+    }
+
+    private void syncSpecifyTargetToArs(ResolvedSpecifyTarget target, Instant now) {
+        Optional<SpecifyArsSyncBatch> latestSuccessfulBatch = getLatestSuccessfulBatch(target.collectionConfig().id());
+        Instant fromInstant = latestSuccessfulBatch
+                .map(SpecifyArsSyncBatch::specify_to_timestamp)
+                .orElse(DEFAULT_SYNC_MILLIS);
         try {
-            List<SpecifyAttachmentContext> attachmentContextsToSync = specifyQueryService.findUpdatedAttachmentContextsSince(fromInstant);
+            List<SpecifyAttachmentContext> attachmentContextsToSync = specifyQueryService.findUpdatedAttachmentContextsSince(target, fromInstant);
             List<SpecifySyncLogEntry> specifySyncLogEntries = new ArrayList<>();
-            log.info("Found {} attachment contexts to sync", attachmentContextsToSync.size());
+            log.info("Found {} attachment contexts to sync for institution {} collection {}", attachmentContextsToSync.size(), target.institutionConfig().name(), target.collectionConfig().name());
 
 
 //            List<MappedAsset> mappedAssets = collectionObjectsToSync.stream()
@@ -117,14 +123,14 @@ public class SpecifySyncService {
             Instant finalFromInsant = fromInstant;
             jdbi.inTransaction(handle -> {
                 SpecifyArsSyncRepository repository = handle.attach(SpecifyArsSyncRepository.class);
-                Integer batchId = repository.createNewBatch(new SpecifyArsSyncBatch(null, now, finalFromInsant, now, SpecifyArsSyncBatchStatus.STARTED, null, specifySyncLogEntries));
+                Integer batchId = repository.createNewBatch(new SpecifyArsSyncBatch(null, now, finalFromInsant, now, SpecifyArsSyncBatchStatus.STARTED, null, target.collectionConfig().id(), specifySyncLogEntries));
                 int[] totalLogEntriesCreated = {0};
                 int[] startedEntries = {0};
                 int[] failedEntries = {0};
 
                 attachmentContextsToSync.stream()
-                        .map(mappingService::mapAssetFromContext)
-                        .filter(mappedAsset -> !wasRecentlySyncedFromArs(repository, mappedAsset))
+                        .map(context -> mappingService.mapAssetFromContext(context, target.institutionConfig().name(), target.collectionConfig().name()))
+                        .filter(mappedAsset -> !wasRecentlySyncedFromArs(repository, mappedAsset, target.collectionConfig().id()))
                         .forEach(
                 mappedAsset -> {
                     SpecifySyncStatus specifySyncStatus = mappedAsset.error == null ? SpecifySyncStatus.STARTED : SpecifySyncStatus.FAILED;
@@ -141,6 +147,7 @@ public class SpecifySyncService {
                             , mappedAsset.error
                             , now
                             , batchId
+                            , target.collectionConfig().id()
                             , normalizeArsAssetGuidForSyncLog(mappedAsset.asset.asset_guid)
                             , SyncDirection.SPECIFY_TO_ARS);
                     Long entryId = repository.insertSyncLog(specifySyncLogEntry);
@@ -167,19 +174,22 @@ public class SpecifySyncService {
 
 
         } catch (Exception e) {
-            Instant finalFromInstant = fromInstant;
-            jdbi.withHandle(handle -> {
-                SpecifyArsSyncRepository attach = handle.attach(SpecifyArsSyncRepository.class);
-                attach.createNewBatch(new SpecifyArsSyncBatch(null, now, finalFromInstant, now, SpecifyArsSyncBatchStatus.FAILED, e.getMessage()));
-                return handle;
-            });
             throw new RuntimeException(e);
         }
-
-
     }
 
-    private boolean wasRecentlySyncedFromArs(SpecifyArsSyncRepository repository, MappedAsset mappedAsset) {
+    private void createFailedBatch(Long collectionConfigId, Instant now, String message) {
+        Instant fromInstant = getLatestSuccessfulBatch(collectionConfigId)
+                .map(SpecifyArsSyncBatch::specify_to_timestamp)
+                .orElse(DEFAULT_SYNC_MILLIS);
+        jdbi.withHandle(handle -> {
+            SpecifyArsSyncRepository attach = handle.attach(SpecifyArsSyncRepository.class);
+            attach.createNewBatch(new SpecifyArsSyncBatch(null, now, fromInstant, now, SpecifyArsSyncBatchStatus.FAILED, message, collectionConfigId, List.of()));
+            return handle;
+        });
+    }
+
+    private boolean wasRecentlySyncedFromArs(SpecifyArsSyncRepository repository, MappedAsset mappedAsset, Long collectionConfigId) {
         if (mappedAsset.specifyCollectionObjectAttachmentId == null || mappedAsset.SpecifyModifiedDate == null) {
             return false;
         }
@@ -187,6 +197,7 @@ public class SpecifySyncService {
         Instant fromTimestamp = mappedAsset.SpecifyModifiedDate.minusSeconds(1);
         Instant toTimestamp = mappedAsset.SpecifyModifiedDate.plusSeconds(1);
         boolean recentlySynced = repository.hasArsToSpecifySyncNearTimestamp(mappedAsset.specifyCollectionObjectAttachmentId
+                , collectionConfigId
                 , fromTimestamp
                 , toTimestamp);
         if (recentlySynced) {
@@ -256,7 +267,7 @@ public class SpecifySyncService {
                         if (syncLogEntry.specify_collection_object_attachment_id() != null) {
                             log.info("Updateting collection object attachment");
 
-                            CollectionObjectAttachment updatedAttachment = updateSpecifyAttachmentGuid(syncLogEntry.specify_collection_object_attachment_id(), incomingAssetGuid);
+                            CollectionObjectAttachment updatedAttachment = updateSpecifyAttachmentGuid(syncLogEntry.specify_collection_object_attachment_id(), incomingAssetGuid, syncLogEntry.collectionId());
                             if (updatedAttachment != null && updatedAttachment.attachment != null && updatedAttachment.attachment.timestampmodified != null) {
 
                                 Instant modifiedTimestamp = Instant.from(specifyDateFormat.parse(updatedAttachment.attachment.timestampmodified));
@@ -268,6 +279,7 @@ public class SpecifySyncService {
                                         null,
                                         Instant.now(),
                                         null,
+                                        syncLogEntry.collectionId(),
                                         incomingAssetGuid,
                                         SyncDirection.ARS_TO_SPECIFY
                                 ));
@@ -281,6 +293,7 @@ public class SpecifySyncService {
                             , acknowledge.additionalInfo()
                             , syncLogEntry.sync_attempt_update_timestamp()
                             , syncLogEntry.specify_ars_sync_batch_id()
+                            , syncLogEntry.collectionId()
                             , syncLogEntry.ars_asset_guid()
                             , syncLogEntry.sync_direction());
                     syncRepository.updateSyncLog(syncLogEntry);
@@ -310,13 +323,15 @@ public class SpecifySyncService {
     }
 
 
-    private CollectionObjectAttachment updateSpecifyAttachmentGuid(Long specifyCollectionObjectAttachmentId, String incomingAssetGuid) {
-        LoginInfo loginInfo = specifyEndpointService.login();
-        Integer specifyCollectionId = loginInfo.collections.get(VASCULAR_PLANTS_COLLECTION);
+    private CollectionObjectAttachment updateSpecifyAttachmentGuid(Long specifyCollectionObjectAttachmentId, String incomingAssetGuid, Long collectionConfigId) {
+        ResolvedSpecifyTarget target = specifyTargetResolverService.getTargetByCollectionConfigId(collectionConfigId)
+                .orElseThrow(() -> new RuntimeException("No collection config found for collection id " + collectionConfigId));
+        LoginInfo loginInfo = specifyEndpointService.login(target.institutionConfig().id());
+        Integer specifyCollectionId = loginInfo.collections.get(target.collectionConfig().name());
         if (specifyCollectionId == null) {
             throw new RuntimeException("No collection was found in specify");
         }
-        SpecifyCollectionLogin specifyLogin = specifyEndpointService.loginToCollection(specifyCollectionId, loginInfo.csrftoken);
+        SpecifyCollectionLogin specifyLogin = specifyEndpointService.loginToCollection(target.institutionConfig().id(), specifyCollectionId, loginInfo.csrftoken);
         CollectionObjectAttachment collectionObjectAttachment = specifyEndpointService.getSpecifyObject(
                 specifyLogin,
                 "/api/specify/collectionobjectattachment/" + specifyCollectionObjectAttachmentId + "/",
@@ -331,10 +346,10 @@ public class SpecifySyncService {
         return specifyEndpointService.putCollectionObjectAttachment(collectionObjectAttachment, specifyLogin);
     }
 
-    public Optional<SpecifyArsSyncBatch> getLatestSuccessfulBatch() {
+    public Optional<SpecifyArsSyncBatch> getLatestSuccessfulBatch(Long collectionConfigId) {
         return jdbi.withHandle(h -> {
             SpecifyArsSyncRepository repository = h.attach(SpecifyArsSyncRepository.class);
-            SpecifyArsSyncBatch latestNonFailed = repository.getLatestNonFailed();
+            SpecifyArsSyncBatch latestNonFailed = repository.getLatestNonFailedByCollectionId(collectionConfigId);
             if (latestNonFailed == null) {
                 return Optional.empty();
             }
@@ -386,7 +401,7 @@ public class SpecifySyncService {
                 Long new_entry_id = repo.insertSyncLog(new SpecifySyncLogEntry(entry, newBatchId, null));
                 entries.add(new SpecifySyncLogEntry(entry, newBatchId, new_entry_id));
             });
-            return new SpecifyArsSyncBatch(newBatchId, syncBatch.batch_timestamp(), syncBatch.specify_from_timestamp(), syncBatch.specify_to_timestamp(), syncBatch.status(), syncBatch.additional_info(), entries);
+            return new SpecifyArsSyncBatch(newBatchId, syncBatch.batch_timestamp(), syncBatch.specify_from_timestamp(), syncBatch.specify_to_timestamp(), syncBatch.status(), syncBatch.additional_info(), syncBatch.collectionId(), entries);
         });
     }
 }

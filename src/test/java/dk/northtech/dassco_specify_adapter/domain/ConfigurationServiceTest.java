@@ -90,7 +90,6 @@ class ConfigurationServiceTest {
         InstitutionConfig created = institutionConfigService.createInstitutionConfig(new InstitutionConfigRequest(
                 "NHMD",
                 "https://specify.example",
-                "https://assets.example",
                 "specify-user",
                 "specify-password"
         ));
@@ -110,7 +109,6 @@ class ConfigurationServiceTest {
         Optional<InstitutionConfig> updated = institutionConfigService.updateInstitutionConfig(created.id(), new InstitutionConfigRequest(
                 "NHMD Updated",
                 "https://specify-2.example",
-                "https://assets-2.example",
                 "specify-user-2",
                 null
         ));
@@ -132,7 +130,6 @@ class ConfigurationServiceTest {
         InstitutionConfig institution = institutionConfigService.createInstitutionConfig(new InstitutionConfigRequest(
                 "SNM",
                 "https://specify.example",
-                "https://assets.example",
                 "specify-user",
                 "specify-password"
         ));
@@ -180,7 +177,6 @@ class ConfigurationServiceTest {
         InstitutionConfig institution = institutionConfigService.createInstitutionConfig(new InstitutionConfigRequest(
                 "NHMA",
                 "https://specify.example",
-                "https://assets.example",
                 "specify-user",
                 "specify-password"
         ));
@@ -188,7 +184,6 @@ class ConfigurationServiceTest {
         assertThrows(ConfigurationConflictException.class, () -> institutionConfigService.createInstitutionConfig(new InstitutionConfigRequest(
                 "NHMA",
                 "https://other-specify.example",
-                "https://other-assets.example",
                 "other-user",
                 "other-password"
         )));
@@ -219,7 +214,6 @@ class ConfigurationServiceTest {
         InstitutionConfig institution = institutionConfigService.createInstitutionConfig(new InstitutionConfigRequest(
                 "ZMUC",
                 "https://specify.example",
-                "https://assets.example",
                 "specify-user",
                 "initial-password"
         ));
@@ -227,7 +221,6 @@ class ConfigurationServiceTest {
         assertThrows(IllegalArgumentException.class, () -> institutionConfigService.updateInstitutionConfig(institution.id(), new InstitutionConfigRequest(
                 "ZMUC",
                 "https://specify.example",
-                "https://assets.example",
                 "specify-user",
                 "   "
         )));
@@ -235,7 +228,6 @@ class ConfigurationServiceTest {
         institutionConfigService.updateInstitutionConfig(institution.id(), new InstitutionConfigRequest(
                 "ZMUC Updated",
                 "https://specify.example",
-                "https://assets.example",
                 "specify-user",
                 null
         ));
@@ -249,7 +241,6 @@ class ConfigurationServiceTest {
         InstitutionConfig institution = institutionConfigService.createInstitutionConfig(new InstitutionConfigRequest(
                 "NHMD",
                 "https://specify.example",
-                "https://assets.example",
                 "specify-user",
                 "specify-password"
         ));
@@ -271,5 +262,37 @@ class ConfigurationServiceTest {
         assertThat(target.institutionConfig().id()).isEqualTo(institution.id());
         assertThat(target.institutionConfig().specifyPassword()).isEqualTo("specify-password");
         assertThat(target.collectionConfig().name()).isEqualTo("Botany");
+    }
+
+    @Test
+    void specifyToArsTargetsOnlyIncludeEnabledCollectionConfigs() {
+        InstitutionConfig institution = institutionConfigService.createInstitutionConfig(new InstitutionConfigRequest(
+                "NHMD",
+                "https://specify.example",
+                "specify-user",
+                "specify-password"
+        ));
+
+        collectionConfigService.createCollectionConfig(institution.id(), new CollectionConfig(
+                null,
+                null,
+                "Enabled collection",
+                null,
+                false,
+                true
+        ));
+        collectionConfigService.createCollectionConfig(institution.id(), new CollectionConfig(
+                null,
+                null,
+                "Disabled collection",
+                null,
+                false,
+                false
+        ));
+
+        List<ResolvedSpecifyTarget> targets = specifyTargetResolverService.listSpecifyToArsTargets();
+        assertThat(targets).hasSize(1);
+        assertThat(targets.getFirst().institutionConfig().name()).isEqualTo("NHMD");
+        assertThat(targets.getFirst().collectionConfig().name()).isEqualTo("Enabled collection");
     }
 }

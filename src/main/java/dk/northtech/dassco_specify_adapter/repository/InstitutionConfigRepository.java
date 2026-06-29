@@ -16,7 +16,6 @@ public interface InstitutionConfigRepository extends SqlObject {
             SELECT id,
                    name,
                    specify_root_url AS specifyRootUrl,
-                   specify_asset_server_url AS specifyAssetServerUrl,
                    specify_username AS specifyUsername
             FROM institution_config
             ORDER BY name
@@ -27,7 +26,6 @@ public interface InstitutionConfigRepository extends SqlObject {
             SELECT id,
                    name,
                    specify_root_url AS specifyRootUrl,
-                   specify_asset_server_url AS specifyAssetServerUrl,
                    specify_username AS specifyUsername
             FROM institution_config
             WHERE id = :id
@@ -38,7 +36,6 @@ public interface InstitutionConfigRepository extends SqlObject {
             SELECT id,
                    name,
                    specify_root_url AS specifyRootUrl,
-                   specify_asset_server_url AS specifyAssetServerUrl,
                    specify_username AS specifyUsername
             FROM institution_config
             WHERE lower(name) = lower(:name)
@@ -49,7 +46,6 @@ public interface InstitutionConfigRepository extends SqlObject {
             SELECT id,
                    name,
                    specify_root_url AS specifyRootUrl,
-                   specify_asset_server_url AS specifyAssetServerUrl,
                    specify_username AS specifyUsername,
                    specify_password_encrypted AS specifyPassword
             FROM institution_config
@@ -61,7 +57,6 @@ public interface InstitutionConfigRepository extends SqlObject {
             SELECT id,
                    name,
                    specify_root_url AS specifyRootUrl,
-                   specify_asset_server_url AS specifyAssetServerUrl,
                    specify_username AS specifyUsername,
                    specify_password_encrypted AS specifyPassword
             FROM institution_config
@@ -74,12 +69,11 @@ public interface InstitutionConfigRepository extends SqlObject {
 
     @GetGeneratedKeys
     @SqlUpdate("""
-            INSERT INTO institution_config(name, specify_root_url, specify_asset_server_url, specify_username, specify_password_encrypted)
-            VALUES (:name, :specifyRootUrl, :specifyAssetServerUrl, :specifyUsername, :specifyPasswordEncrypted)
+            INSERT INTO institution_config(name, specify_root_url, specify_username, specify_password_encrypted)
+            VALUES (:name, :specifyRootUrl, :specifyUsername, :specifyPasswordEncrypted)
             """)
     Long createInstitutionConfig(@Bind("name") String name,
                                  @Bind("specifyRootUrl") String specifyRootUrl,
-                                 @Bind("specifyAssetServerUrl") String specifyAssetServerUrl,
                                  @Bind("specifyUsername") String specifyUsername,
                                  @Bind("specifyPasswordEncrypted") String specifyPasswordEncrypted);
 
@@ -87,7 +81,6 @@ public interface InstitutionConfigRepository extends SqlObject {
             UPDATE institution_config
             SET name = :name,
                 specify_root_url = :specifyRootUrl,
-                specify_asset_server_url = :specifyAssetServerUrl,
                 specify_username = :specifyUsername,
                 specify_password_encrypted = :specifyPasswordEncrypted
             WHERE id = :id
@@ -95,7 +88,6 @@ public interface InstitutionConfigRepository extends SqlObject {
     int updateInstitutionConfig(@Bind("id") Long id,
                                 @Bind("name") String name,
                                 @Bind("specifyRootUrl") String specifyRootUrl,
-                                @Bind("specifyAssetServerUrl") String specifyAssetServerUrl,
                                 @Bind("specifyUsername") String specifyUsername,
                                 @Bind("specifyPasswordEncrypted") String specifyPasswordEncrypted);
 

@@ -56,7 +56,6 @@ public class InstitutionConfigService {
                 Long id = repository.createInstitutionConfig(
                         normalized.name(),
                         normalized.specifyRootUrl(),
-                        normalized.specifyAssetServerUrl(),
                         normalized.specifyUsername(),
                         passwordService.encrypt(normalized.specifyPassword())
                 );
@@ -87,7 +86,6 @@ public class InstitutionConfigService {
                         id,
                         normalized.name(),
                         normalized.specifyRootUrl(),
-                        normalized.specifyAssetServerUrl(),
                         normalized.specifyUsername(),
                         encryptedPassword
                 );
@@ -118,7 +116,6 @@ public class InstitutionConfigService {
         return new InstitutionConfigRequest(
                 requireText(institutionConfigRequest.name(), "name"),
                 requireText(institutionConfigRequest.specifyRootUrl(), "specifyRootUrl"),
-                requireText(institutionConfigRequest.specifyAssetServerUrl(), "specifyAssetServerUrl"),
                 requireText(institutionConfigRequest.specifyUsername(), "specifyUsername"),
                 requirePassword(institutionConfigRequest.specifyPassword(), true)
         );
@@ -128,7 +125,6 @@ public class InstitutionConfigService {
         return new InstitutionConfigRequest(
                 requireText(institutionConfigRequest.name(), "name"),
                 requireText(institutionConfigRequest.specifyRootUrl(), "specifyRootUrl"),
-                requireText(institutionConfigRequest.specifyAssetServerUrl(), "specifyAssetServerUrl"),
                 requireText(institutionConfigRequest.specifyUsername(), "specifyUsername"),
                 requirePassword(institutionConfigRequest.specifyPassword(), false)
         );
@@ -139,7 +135,6 @@ public class InstitutionConfigService {
                 institutionConfig.id(),
                 institutionConfig.name(),
                 institutionConfig.specifyRootUrl(),
-                institutionConfig.specifyAssetServerUrl(),
                 institutionConfig.specifyUsername(),
                 collectionRepository.listCollectionConfigsByInstitutionId(institutionConfig.id())
         );

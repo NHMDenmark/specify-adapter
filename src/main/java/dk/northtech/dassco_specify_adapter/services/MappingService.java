@@ -123,7 +123,7 @@ public class MappingService {
     }
 
 
-    public MappedAsset mapAssetFromContext(SpecifyAttachmentContext context) {
+    public MappedAsset mapAssetFromContext(SpecifyAttachmentContext context, String institution, String collection) {
         HashSet<String> preparationTypes = new HashSet<>();
         if (context.prepTypes != null) {
             context.prepTypes.forEach(prepType -> {
@@ -136,8 +136,8 @@ public class MappingService {
             preparationTypes.add("unknown");
         }
         String primaryPreparationType = preparationTypes.size() == 1 ? preparationTypes.iterator().next() : "unknown";
-        SyncDefaults syncDefaults = readSyncDefaults(NHMD, VASCULAR_PLANTS_COLLECTION);
-        String values = readConfigARSToSpecify(NHMD, VASCULAR_PLANTS_COLLECTION);
+        SyncDefaults syncDefaults = readSyncDefaults(institution, collection);
+        String values = readConfigARSToSpecify(institution, collection);
         values = values.replace("\r\n", "${split}")
                 .replace("\n", "${split}");
         Map<String, String> specifyArsValues = getMappedValues(values);
@@ -170,10 +170,10 @@ public class MappingService {
         mappedAsset.asset.metadata_source = "specify_adapter_v" + infoVersion;
 
         if (mappedAsset.asset.collection == null) {
-            mappedAsset.asset.collection = VASCULAR_PLANTS_COLLECTION;
+            mappedAsset.asset.collection = collection;
         }
         if (mappedAsset.asset.institution == null) {
-            mappedAsset.asset.institution = NHMD;
+            mappedAsset.asset.institution = institution;
         }
         String digitiser = getDigitiser(context.modifiedByAgent);
         if (!Strings.isNullOrEmpty(digitiser)) {
@@ -182,8 +182,8 @@ public class MappingService {
         }
 
         Specimen specimen = new Specimen(
-                NHMD,
-                VASCULAR_PLANTS_COLLECTION,
+                institution,
+                collection,
                 context.collectionObject.catalognumber,
                 mappedAsset.asset.institution + "." + mappedAsset.asset.collection + "." + context.collectionObject.catalognumber,
                 preparationTypes,
@@ -202,6 +202,10 @@ public class MappingService {
         }
         mappedAsset.updatedFields.addAll(specifyArsValues.values());
         return mappedAsset;
+    }
+
+    public MappedAsset mapAssetFromContext(SpecifyAttachmentContext context) {
+        return mapAssetFromContext(context, NHMD, VASCULAR_PLANTS_COLLECTION);
     }
 
     private String getDigitiser(Agent modifiedByAgent) {

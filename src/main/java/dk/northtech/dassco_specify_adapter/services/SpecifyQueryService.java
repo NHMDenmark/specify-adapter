@@ -91,16 +91,14 @@ public class SpecifyQueryService {
         return foundCollectionObjects;
     }
 
-    public List<SpecifyAttachmentContext> findUpdatedAttachmentContextsSince(@NotNull Instant lastSyncTimestamp) {
-        LoginInfo loginInfo = specifyEndpointService.login();
-        int specifyCollectionId;
-        if (loginInfo.collections.containsKey(VASCULAR_PLANTS_COLLECTION)) {
-            specifyCollectionId = loginInfo.collections.get(VASCULAR_PLANTS_COLLECTION);
-        } else {
-            throw new SpecifyAdapterException("No collection was found in specify", AcknowledgeStatus.MAPPING_ERROR);
+    public List<SpecifyAttachmentContext> findUpdatedAttachmentContextsSince(ResolvedSpecifyTarget target, @NotNull Instant lastSyncTimestamp) {
+        LoginInfo loginInfo = specifyEndpointService.login(target.institutionConfig().id());
+        Integer specifyCollectionId = loginInfo.collections.get(target.collectionConfig().name());
+        if (specifyCollectionId == null) {
+            throw new SpecifyAdapterException("No collection was found in specify for collection config '" + target.collectionConfig().name() + "'", AcknowledgeStatus.MAPPING_ERROR);
         }
 
-        SpecifyCollectionLogin specifyLogin = specifyEndpointService.loginToCollection(specifyCollectionId, loginInfo.csrftoken);
+        SpecifyCollectionLogin specifyLogin = specifyEndpointService.loginToCollection(target.institutionConfig().id(), specifyCollectionId, loginInfo.csrftoken);
         LocalDateTime lastSyncLocal = LocalDateTime.ofInstant(lastSyncTimestamp, SPECIFY_TIMEZONE);
         List<SpecifyAttachmentContext> contexts = new ArrayList<>();
         Map<String, Agent> agentByUri = new HashMap<>();
@@ -208,7 +206,7 @@ public class SpecifyQueryService {
         HttpClient httpClient = HttpClient.newBuilder().build();
         try {
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(this.specifyProperties.rootUrl() + "/stored_query/ephemeral/"))
+                    .uri(URI.create(login.rootUrl() + "/stored_query/ephemeral/"))
                     .header("Cookie", "collection=" + login.collection() + ";csrftoken=" + login.csrftoken() + ";sessionid=" + login.sessionid())
                     .header("X-CSRFToken", login.csrftoken())
                     .POST(HttpRequest.BodyPublishers.ofString(postbody))
@@ -271,7 +269,7 @@ public class SpecifyQueryService {
         HttpClient httpClient = HttpClient.newBuilder()
                 .build();
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(this.specifyProperties.rootUrl() + "/api/specify/collectionobject/" + collectionObjectId + "/"))
+                .uri(URI.create(login.rootUrl() + "/api/specify/collectionobject/" + collectionObjectId + "/"))
                 .header("Cookie", "collection=" + login.collection() + ";csrftoken=" + login.csrftoken() + ";sessionid=" + login.sessionid())
                 .header("X-CSRFToken", login.csrftoken())
                 .GET()
@@ -300,7 +298,7 @@ public class SpecifyQueryService {
         try {
             String json = writer.writeValueAsString(collectionObjectAttachment);
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(this.specifyProperties.rootUrl() + "/api/specify/collectionobjectattachment/"))
+                    .uri(URI.create(login.rootUrl() + "/api/specify/collectionobjectattachment/"))
                     .header("Cookie", "collection=" + login.collection() + ";csrftoken=" + login.csrftoken() + ";sessionid=" + login.sessionid())
                     .header("X-CSRFToken", login.csrftoken())
                     .POST(HttpRequest.BodyPublishers.ofString(json))

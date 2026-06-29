@@ -7,7 +7,7 @@ import java.util.List;
 public record InstitutionConfigCredentials(Long id,
                                            String name,
                                            String specifyRootUrl,
-                                           String specifyAssetServerUrl,
+
                                            String specifyUsername,
                                            String specifyPassword,
                                            List<CollectionConfig> collectionConfigs) {
@@ -16,10 +16,10 @@ public record InstitutionConfigCredentials(Long id,
     public InstitutionConfigCredentials(Long id,
                                         String name,
                                         String specifyRootUrl,
-                                        String specifyAssetServerUrl,
+
                                         String specifyUsername,
                                         String specifyPassword) {
-        this(id, name, specifyRootUrl, specifyAssetServerUrl, specifyUsername, specifyPassword, List.of());
+        this(id, name, specifyRootUrl,  specifyUsername, specifyPassword, List.of());
     }
 
     public InstitutionConfigCredentials {
