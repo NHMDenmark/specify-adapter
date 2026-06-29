@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.17.xsd">
+
+    <changeSet id="1.3.3:ADD_EMPTY_SYNC_BATCH_STATUS" author="Thomas Skov Bornerup">
+        <insert tableName="specify_ars_sync_batch_status">
+            <column name="specify_ars_sync_batch_status" value="EMPTY"/>
+        </insert>
+    </changeSet>
+
+</databaseChangeLog>

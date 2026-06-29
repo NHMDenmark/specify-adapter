@@ -13,6 +13,7 @@ import liquibase.database.DatabaseFactory;
 import liquibase.database.jvm.JdbcConnection;
 import liquibase.resource.ClassLoaderResourceAccessor;
 import org.jdbi.v3.core.Jdbi;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,6 +74,14 @@ class SpecifySyncServiceTest {
         registry.add("datasource.jdbcUrl", () -> "jdbc:postgresql://localhost:" + postgreSQL.getFirstMappedPort() + "/dassco_bridge");
     }
 
+    @BeforeEach
+    void resetTables() {
+        jdbi.useHandle(handle -> {
+            handle.execute("DELETE FROM specify_sync_log");
+            handle.execute("DELETE FROM specify_ars_sync_batch");
+        });
+    }
+
     @Test
     void test() {
         jdbi.withHandle(x -> {
@@ -84,6 +93,21 @@ class SpecifySyncServiceTest {
             SpecifyArsSyncBatch latestNonFailed = attach.getLatestNonFailed();
             assertThat(latestNonFailed.additional_info()).isEqualTo(succeeded.additional_info());
             assertThat(latestNonFailed.status()).isEqualTo(SpecifyArsSyncBatchStatus.SUCCEEDED);
+            return x;
+        });
+    }
+
+    @Test
+    void emptyBatchIsTreatedAsLatestNonFailed() {
+        jdbi.withHandle(x -> {
+            SpecifyArsSyncBatch failed = new SpecifyArsSyncBatch(null, Instant.now(), Instant.now().minus(24, ChronoUnit.HOURS), Instant.now(), SpecifyArsSyncBatchStatus.FAILED, "failed");
+            SpecifyArsSyncBatch empty = new SpecifyArsSyncBatch(null, Instant.now(), Instant.now().minus(12, ChronoUnit.HOURS), Instant.now().minus(1, ChronoUnit.HOURS), SpecifyArsSyncBatchStatus.EMPTY, "empty");
+            SpecifyArsSyncRepository attach = x.attach(SpecifyArsSyncRepository.class);
+            attach.createNewBatch(failed);
+            attach.createNewBatch(empty);
+            SpecifyArsSyncBatch latestNonFailed = attach.getLatestNonFailed();
+            assertThat(latestNonFailed.additional_info()).isEqualTo(empty.additional_info());
+            assertThat(latestNonFailed.status()).isEqualTo(SpecifyArsSyncBatchStatus.EMPTY);
             return x;
         });
     }

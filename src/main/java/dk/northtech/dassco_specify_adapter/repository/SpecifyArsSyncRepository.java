@@ -28,7 +28,7 @@ public interface SpecifyArsSyncRepository extends SqlObject {
                    collection_id AS collectionId
             FROM specify_ars_sync_batch
             WHERE collection_id = :collectionId
-              AND status IN ('FAILED_ENTRIES', 'SUCCEEDED', 'STARTED')
+              AND status IN ('EMPTY', 'FAILED_ENTRIES', 'SUCCEEDED', 'STARTED')
             ORDER BY specify_to_timestamp DESC
             LIMIT 1
             """)
@@ -43,7 +43,7 @@ public interface SpecifyArsSyncRepository extends SqlObject {
                    additional_info,
                    collection_id AS collectionId
             FROM specify_ars_sync_batch
-            WHERE status IN ('FAILED_ENTRIES', 'SUCCEEDED', 'STARTED')
+            WHERE status IN ('EMPTY', 'FAILED_ENTRIES', 'SUCCEEDED', 'STARTED')
             ORDER BY specify_to_timestamp DESC
             LIMIT 1
             """)

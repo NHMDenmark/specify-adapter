@@ -61,18 +61,6 @@ public class SpecifyEndpointService {
         this.institutionConfigCredentialsService = institutionConfigCredentialsService;
         this.specifyTargetResolverService = specifyTargetResolverService;
     }
-    public SpecifyCollectionLogin loginToCollection(String collection) {
-        LoginInfo loginInfo = login();
-        int specifyCollectionId = 0;
-        if (loginInfo.collections.containsKey(collection)) {
-            specifyCollectionId = loginInfo.collections.get(collection);
-        } else {
-            throw new SpecifyAdapterException("No collection was found in specify", AcknowledgeStatus.MAPPING_ERROR);
-        }
-        logger.info("Logging into collection {}", collection);
-        logger.info("Specify collection id {}", specifyCollectionId);
-        return loginToCollection(specifyCollectionId, loginInfo.csrftoken);
-    }
 
     public List<AssetSpecimen> pushAssetToSpecify(CollectionObjectAttachment updateFromARS, Asset arsAsset) {
         ResolvedSpecifyTarget target = specifyTargetResolverService.resolveForAsset(arsAsset);
@@ -251,9 +239,6 @@ public class SpecifyEndpointService {
         }
     }
 
-    public SpecifyCollectionLogin loginToCollection(int collection, String csrfToken) {
-        return loginToCollection(collection, csrfToken, this.specifyProperties.rootUrl(), this.specifyProperties.username(), this.specifyProperties.password());
-    }
 
     public SpecifyCollectionLogin loginToCollection(Long institutionId, int collection, String csrfToken) {
         InstitutionConfigCredentials credentials = institutionConfigCredentialsService.getInstitutionConfigCredentials(institutionId)

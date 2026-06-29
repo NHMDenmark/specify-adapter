@@ -34,7 +34,7 @@ public class SpecifySyncService {
     // Specify timestamps is in the local timezone.
     private final DateTimeFormatter specifyDateFormat = DateTimeFormatter.ISO_LOCAL_DATE_TIME
             .withZone(ZoneId.of("Europe/Copenhagen"));
-    private static final Instant DEFAULT_SYNC_MILLIS = Instant.ofEpochMilli(1767272493000L);
+    private static final Instant DEFAULT_SYNC_MILLIS = Instant.ofEpochMilli(1782746709772L); //29 Jun 2026
 
     @Inject
     public SpecifySyncService(QueueBroadcaster queueBroadcaster, SpecifyEndpointService specifyEndpointService, MappingService mappingService, SpecifyQueryService specifyQueryService, SpecifyTargetResolverService specifyTargetResolverService, Jdbi jdbi) {
@@ -153,7 +153,9 @@ public class SpecifySyncService {
                     Long entryId = repository.insertSyncLog(specifySyncLogEntry);
                     entryIdAsset.put(entryId, mappedAsset);
                 });
-                if (totalLogEntriesCreated[0] > 0 && startedEntries[0] == 0 && failedEntries[0] > 0) {
+                if (totalLogEntriesCreated[0] == 0) {
+                    repository.updateSpecifyArsSyncBatch(batchId, SpecifyArsSyncBatchStatus.EMPTY, "No new attachments found");
+                } else if (startedEntries[0] == 0 && failedEntries[0] > 0) {
                     repository.updateSpecifyArsSyncBatch(batchId, SpecifyArsSyncBatchStatus.FAILED, "All entries failed before queue dispatch");
                 }
                 handle.commit();
