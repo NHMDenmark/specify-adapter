@@ -379,39 +379,6 @@ public class SpecifyEndpointService {
     }
 
 
-    public List<UploadParams> getUploadParams(SpecifyCollectionLogin login, List<String> filenames) {
-
-        HttpClient httpClient = HttpClient.newBuilder().build();
-
-        JSONObject jsonObject = new JSONObject();
-        jsonObject.put("filenames", new JSONArray(filenames));
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(login.rootUrl() + "/attachment_gw/get_upload_params/"))
-                .header("X-CSRFToken", login.csrftoken())
-                .header("Cookie", "collection=" + login.collection() + ";csrftoken=" + login.csrftoken() + ";sessionid=" + login.sessionid())
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(jsonObject.toString()))
-                .build();
-
-        try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200) {
-                String json = response.body();
-                return Arrays.asList(mapper.readValue(json, UploadParams[].class));
-            } else if (response.statusCode() == 403) {
-                throw new RuntimeException("Forbidden. Most likely scenario is a fail in the CSRF token.");
-            } else {
-                String json = response.body();
-                logger.error(json);
-                throw new RuntimeException("Something failed when getting the Upload Params");
-            }
-        } catch (IOException | InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-
     public CollectionObject getCollectionObject(SpecifyCollectionLogin login, String barcode) {
         HttpClient httpClient = HttpClient.newBuilder()
                 .build();

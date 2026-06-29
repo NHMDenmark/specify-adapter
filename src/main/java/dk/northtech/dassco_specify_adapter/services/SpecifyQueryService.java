@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import dk.northtech.dassco_specify_adapter.assets.SpecifyProperties;
+import dk.northtech.dassco_specify_adapter.configuration.SpecifySyncProperties;
 import dk.northtech.dassco_specify_adapter.domain.*;
 import dk.northtech.dassco_specify_adapter.domain.specify.*;
 import dk.northtech.dassco_specify_adapter.domain.sync.SpecifyAttachmentContext;
@@ -35,6 +36,8 @@ import java.util.Optional;
 @Service
 public class SpecifyQueryService {
     private final SpecifyProperties specifyProperties;
+    private final SpecifySyncProperties specifySyncProperties;
+    private final ZoneId specifyTimezone;
 //    AssetFileService assetFileService;
 
 //    KeycloakService keycloakService;
@@ -43,53 +46,20 @@ public class SpecifyQueryService {
     ObjectWriter writer = new ObjectMapper().registerModule(new JavaTimeModule()).writer().withDefaultPrettyPrinter();
 
     private static final Logger logger = LoggerFactory.getLogger(SpecifyQueryService.class);
-    private static final String VASCULAR_PLANTS_COLLECTION = "NHMD Vascular Plants";
-    private static final int ATTACHMENT_PAGE_SIZE = 20;
-    private static final int MAX_UPDATED_ATTACHMENTS = 100;
     private static final DateTimeFormatter SPECIFY_DATE_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
-    public static final ZoneId SPECIFY_TIMEZONE = ZoneId.of("Europe/Copenhagen");
+
     @Inject
-    public SpecifyQueryService(SpecifyEndpointService specifyEndpointService, SpecifyProperties specifyProperties) {
+    public SpecifyQueryService(SpecifyEndpointService specifyEndpointService,
+                               SpecifyProperties specifyProperties,
+                               SpecifySyncProperties specifySyncProperties) {
         this.specifyEndpointService = specifyEndpointService;
         this.specifyProperties = specifyProperties;
+        this.specifySyncProperties = specifySyncProperties;
+        validateSyncProperties(specifySyncProperties);
+        this.specifyTimezone = ZoneId.of(specifySyncProperties.specifyTimezone().trim());
     }
 
-    public List<CollectionObject> findCollectionObjectsToSync(@NotNull String fromTimestamp, String toTimestamp) {
 
-        // 2: Log In to Specify:
-        LoginInfo loginInfo = specifyEndpointService.login();
-//        String csrfToken = loginMap.get("csrftoken").toString();
-        // 3: Get Asset Institution and Collection Mapping:
-        String collection = VASCULAR_PLANTS_COLLECTION;
-        //        Object collectionObj = loginMap.get("collections");
-
-        int specifyCollectionId = 0;
-//        if (collectionObj instanceof JSONObject collections) {
-        if (loginInfo.collections.containsKey(collection)) {
-            specifyCollectionId = loginInfo.collections.get(collection);
-        } else {
-            throw new SpecifyAdapterException("No collection was found in specify", AcknowledgeStatus.MAPPING_ERROR);
-        }
-//        }
-        logger.info("Logging into collection {}", collection);
-        logger.info("Specify collection id {}", specifyCollectionId);
-        // 4: Login to Collection:
-        SpecifyCollectionLogin specifyLogin = specifyEndpointService.loginToCollection(specifyCollectionId, loginInfo.csrftoken);
-        String json = UPDATED_SINCE_QUERY;
-        String postbody = json.replace("<from_timestamp>", fromTimestamp).replace("<to_timestamp>", toTimestamp);
-        List<CollectionObject> foundCollectionObjects = new ArrayList<>();
-        SpecifyQueryResult specifyQueryResult = querySpecify(postbody, specifyLogin);
-        specifyQueryResult.results.forEach(x -> {
-            if(x.size() == 2) {
-                logger.info("found collectionObject with id {}", x.get(0)  );
-                logger.info("found collectionObject with last modified {}", x.get(1)  );
-                Optional<CollectionObject> collectionObjectOpt = getCollectionObject(specifyLogin, (Integer) x.get(0));
-                logger.info("found collectionObject {}", collectionObjectOpt.isPresent());
-                collectionObjectOpt.ifPresent(foundCollectionObjects::add);
-            }
-        });
-        return foundCollectionObjects;
-    }
 
     public List<SpecifyAttachmentContext> findUpdatedAttachmentContextsSince(ResolvedSpecifyTarget target, @NotNull Instant lastSyncTimestamp) {
         LoginInfo loginInfo = specifyEndpointService.login(target.institutionConfig().id());
@@ -99,7 +69,7 @@ public class SpecifyQueryService {
         }
 
         SpecifyCollectionLogin specifyLogin = specifyEndpointService.loginToCollection(target.institutionConfig().id(), specifyCollectionId, loginInfo.csrftoken);
-        LocalDateTime lastSyncLocal = LocalDateTime.ofInstant(lastSyncTimestamp, SPECIFY_TIMEZONE);
+        LocalDateTime lastSyncLocal = LocalDateTime.ofInstant(lastSyncTimestamp, specifyTimezone);
         List<SpecifyAttachmentContext> contexts = new ArrayList<>();
         Map<String, Agent> agentByUri = new HashMap<>();
         Map<String, PrepType> prepTypeByUri = new HashMap<>();
@@ -126,8 +96,8 @@ public class SpecifyQueryService {
                 }
 
                 updatedAttachmentCount++;
-                if (updatedAttachmentCount > MAX_UPDATED_ATTACHMENTS) {
-                    throw new RuntimeException("Found more than " + MAX_UPDATED_ATTACHMENTS + " attachments updated since last sync");
+                if (updatedAttachmentCount > specifySyncProperties.maxUpdatedAttachments()) {
+                    throw new RuntimeException("Found more than " + specifySyncProperties.maxUpdatedAttachments() + " attachments updated since last sync");
                 }
                 Agent createdByAgent =  getAgent(specifyLogin, attachment.createdbyagent, agentByUri);
                 CollectionObjectAttachmentSearchResult collectionObjectAttachmentResult = getCollectionObjectAttachments(specifyLogin, attachment.collectionobjectattachments);
@@ -152,12 +122,29 @@ public class SpecifyQueryService {
                 }
             }
 
-            if (!allAfterLastSync || result.objects.size() < ATTACHMENT_PAGE_SIZE) {
+            if (!allAfterLastSync || result.objects.size() < specifySyncProperties.attachmentPageSize()) {
                 break;
             }
-            offset += ATTACHMENT_PAGE_SIZE;
+            offset += specifySyncProperties.attachmentPageSize();
         }
         return contexts;
+    }
+
+    private void validateSyncProperties(SpecifySyncProperties properties) {
+        if (properties.maxUpdatedAttachments() <= 0) {
+            throw new IllegalStateException("specify-sync.maxUpdatedAttachments must be greater than 0");
+        }
+        if (properties.attachmentPageSize() <= 0) {
+            throw new IllegalStateException("specify-sync.attachmentPageSize must be greater than 0");
+        }
+        if (properties.specifyTimezone() == null || properties.specifyTimezone().isBlank()) {
+            throw new IllegalStateException("specify-sync.specifyTimezone must be configured");
+        }
+        try {
+            ZoneId.of(properties.specifyTimezone().trim());
+        } catch (Exception exception) {
+            throw new IllegalStateException("specify-sync.specifyTimezone is invalid", exception);
+        }
     }
 
     private boolean isAfterLastSync(String specifyTimestamp, LocalDateTime lastSyncLocal) {
