@@ -5,15 +5,12 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.17.xsd">
 
-    <changeSet id="1.2.0:CREATE_INSTITUTION" author="OpenCode">
+    <changeSet id="1.2.0:CREATE_INSTITUTION" author="Thomas Skov Bornerup">
         <createTable tableName="institution">
             <column name="id" type="bigint" autoIncrement="true">
                 <constraints nullable="false"
                              primaryKey="true"
                              primaryKeyName="pk_institution"/>
-            </column>
-            <column name="code" type="text">
-                <constraints nullable="false"/>
             </column>
             <column name="name" type="text">
                 <constraints nullable="false"/>
@@ -27,22 +24,13 @@
             <column name="specify_username" type="text">
                 <constraints nullable="false"/>
             </column>
-            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
         </createTable>
-        <addUniqueConstraint tableName="institution"
-                             columnNames="code"
-                             constraintName="uk_institution__code"/>
         <addUniqueConstraint tableName="institution"
                              columnNames="name"
                              constraintName="uk_institution__name"/>
     </changeSet>
 
-    <changeSet id="1.2.0:CREATE_COLLECTION" author="OpenCode">
+    <changeSet id="1.2.0:CREATE_COLLECTION" author="Thomas Skov Bornerup">
         <createTable tableName="collection">
             <column name="id" type="bigint" autoIncrement="true">
                 <constraints nullable="false"
@@ -52,25 +40,16 @@
             <column name="institution_id" type="bigint">
                 <constraints nullable="false"/>
             </column>
-            <column name="code" type="text">
-                <constraints nullable="true"/>
-            </column>
             <column name="name" type="text">
                 <constraints nullable="false"/>
             </column>
-            <column name="specify_collection_name" type="text">
+            <column name="description" type="text">
                 <constraints nullable="true"/>
             </column>
             <column name="sync_to_specify_enabled" type="boolean" defaultValueBoolean="false">
                 <constraints nullable="false"/>
             </column>
             <column name="sync_from_specify_enabled" type="boolean" defaultValueBoolean="false">
-                <constraints nullable="false"/>
-            </column>
-            <column name="created_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
-                <constraints nullable="false"/>
-            </column>
-            <column name="updated_at" type="timestamp" defaultValueComputed="CURRENT_TIMESTAMP">
                 <constraints nullable="false"/>
             </column>
         </createTable>
@@ -87,7 +66,7 @@
         </createIndex>
     </changeSet>
 
-    <changeSet id="1.2.0:ADD_COLLECTION_ID_TO_SYNC_BATCH" author="OpenCode">
+    <changeSet id="1.2.0:ADD_COLLECTION_ID_TO_SYNC_BATCH" author="Thomas Skov Bornerup">
         <addColumn tableName="specify_ars_sync_batch">
             <column name="collection_id" type="bigint"/>
         </addColumn>
@@ -101,7 +80,7 @@
         </createIndex>
     </changeSet>
 
-    <changeSet id="1.2.0:ADD_COLLECTION_ID_TO_SYNC_LOG" author="OpenCode">
+    <changeSet id="1.2.0:ADD_COLLECTION_ID_TO_SYNC_LOG" author="Thomas Skov Bornerup">
         <addColumn tableName="specify_sync_log">
             <column name="collection_id" type="bigint"/>
         </addColumn>
