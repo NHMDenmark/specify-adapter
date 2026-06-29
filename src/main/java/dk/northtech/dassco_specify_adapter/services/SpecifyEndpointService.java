@@ -41,6 +41,7 @@ public class SpecifyEndpointService {
     AssetFileService assetFileService;
 
     KeycloakService keycloakService;
+    InstitutionConfigCredentialsService institutionConfigCredentialsService;
     ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule()).configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     ObjectWriter writer = new ObjectMapper().registerModule(new JavaTimeModule()).writer().withDefaultPrettyPrinter();
 
@@ -49,11 +50,13 @@ public class SpecifyEndpointService {
     @Inject
     public SpecifyEndpointService(SpecifyProperties specifyProperties,
                                   AssetFileService assetFileService,
-                                  KeycloakService keycloakService) {
+                                  KeycloakService keycloakService,
+                                  InstitutionConfigCredentialsService institutionConfigCredentialsService) {
         this.specifyProperties = specifyProperties;
         this.assetFileService = assetFileService;
 
         this.keycloakService = keycloakService;
+        this.institutionConfigCredentialsService = institutionConfigCredentialsService;
     }
     public SpecifyCollectionLogin loginToCollection(String collection) {
         LoginInfo loginInfo = login();
@@ -193,6 +196,16 @@ public class SpecifyEndpointService {
     }
 
     public LoginInfo login() {
+        return login(this.specifyProperties.rootUrl());
+    }
+
+    public LoginInfo login(Long institutionId) {
+        InstitutionConfigCredentials credentials = institutionConfigCredentialsService.getInstitutionConfigCredentials(institutionId)
+                .orElseThrow(() -> new IllegalArgumentException("Institution config " + institutionId + " has no stored Specify credentials"));
+        return login(credentials.specifyRootUrl());
+    }
+
+    private LoginInfo login(String rootUrl) {
 
         CookieManager cookieManager = new CookieManager();
         cookieManager.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
@@ -203,7 +216,7 @@ public class SpecifyEndpointService {
                 .build();
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(this.specifyProperties.rootUrl() + "/context/login/"))
+                .uri(URI.create(rootUrl + "/context/login/"))
                 .GET()
                 .build();
 
@@ -230,6 +243,16 @@ public class SpecifyEndpointService {
     }
 
     public SpecifyCollectionLogin loginToCollection(int collection, String csrfToken) {
+        return loginToCollection(collection, csrfToken, this.specifyProperties.rootUrl(), this.specifyProperties.username(), this.specifyProperties.password());
+    }
+
+    public SpecifyCollectionLogin loginToCollection(Long institutionId, int collection, String csrfToken) {
+        InstitutionConfigCredentials credentials = institutionConfigCredentialsService.getInstitutionConfigCredentials(institutionId)
+                .orElseThrow(() -> new IllegalArgumentException("Institution config " + institutionId + " has no stored Specify credentials"));
+        return loginToCollection(collection, csrfToken, credentials.specifyRootUrl(), credentials.specifyUsername(), credentials.specifyPassword());
+    }
+
+    private SpecifyCollectionLogin loginToCollection(int collection, String csrfToken, String rootUrl, String username, String password) {
 
         CookieManager cookieManager = new CookieManager();
         cookieManager.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
@@ -239,8 +262,8 @@ public class SpecifyEndpointService {
                 .build();
 
         HashMap<String, String> credentials = new HashMap<>();
-        credentials.put("username", this.specifyProperties.username());
-        credentials.put("password", this.specifyProperties.password());
+        credentials.put("username", username);
+        credentials.put("password", password);
         credentials.put("collection", String.valueOf(collection));
 //        String requestBody = String.format(
 //                "{\"username\":\"%s\",\"password\":\"%s\",\"collection\":%d}",
@@ -252,11 +275,11 @@ public class SpecifyEndpointService {
             String requestBody = writer.writeValueAsString(credentials);
 
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(this.specifyProperties.rootUrl() + "/context/login/"))
+                    .uri(URI.create(rootUrl + "/context/login/"))
                     .header("X-CSRFToken", csrfToken)
                     .header("Cookie", "csrftoken=" + csrfToken)
                     .header("Content-Type", "application/json")
-                    .header("Referer", this.specifyProperties.rootUrl() + "/")
+                    .header("Referer", rootUrl + "/")
                     .PUT(HttpRequest.BodyPublishers.ofString(requestBody))
                     .build();
 

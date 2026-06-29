@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.17.xsd">
+
+    <changeSet id="1.3.0:RENAME_INSTITUTION_TABLE" author="OpenCode">
+        <renameTable oldTableName="institution" newTableName="institution_config"/>
+    </changeSet>
+
+    <changeSet id="1.3.0:RENAME_COLLECTION_TABLE" author="OpenCode">
+        <renameTable oldTableName="collection" newTableName="collection_config"/>
+    </changeSet>
+
+    <changeSet id="1.3.0:UPDATE_COLLECTION_CONFIG_FOREIGN_KEYS" author="OpenCode">
+        <dropForeignKeyConstraint baseTableName="collection_config" constraintName="fk_collection__institution"/>
+        <addForeignKeyConstraint baseTableName="collection_config"
+                                 baseColumnNames="institution_id"
+                                 constraintName="fk_collection_config__institution_config"
+                                 referencedTableName="institution_config"
+                                 referencedColumnNames="id"/>
+    </changeSet>
+
+    <changeSet id="1.3.0:UPDATE_SYNC_BATCH_COLLECTION_FOREIGN_KEY" author="OpenCode">
+        <dropForeignKeyConstraint baseTableName="specify_ars_sync_batch" constraintName="fk_specify_ars_sync_batch__collection"/>
+        <addForeignKeyConstraint baseTableName="specify_ars_sync_batch"
+                                 baseColumnNames="collection_id"
+                                 constraintName="fk_specify_ars_sync_batch__collection_config"
+                                 referencedTableName="collection_config"
+                                 referencedColumnNames="id"/>
+    </changeSet>
+
+    <changeSet id="1.3.0:UPDATE_SYNC_LOG_COLLECTION_FOREIGN_KEY" author="OpenCode">
+        <dropForeignKeyConstraint baseTableName="specify_sync_log" constraintName="fk_specify_sync_log__collection"/>
+        <addForeignKeyConstraint baseTableName="specify_sync_log"
+                                 baseColumnNames="collection_id"
+                                 constraintName="fk_specify_sync_log__collection_config"
+                                 referencedTableName="collection_config"
+                                 referencedColumnNames="id"/>
+    </changeSet>
+
+    <changeSet id="1.3.0:ADD_INSTITUTION_CONFIG_PASSWORD" author="OpenCode">
+        <addColumn tableName="institution_config">
+            <column name="specify_password_encrypted" type="text"/>
+        </addColumn>
+    </changeSet>
+
+</databaseChangeLog>

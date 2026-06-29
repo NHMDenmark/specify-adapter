@@ -2,6 +2,9 @@ package dk.northtech.dassco_specify_adapter.configuration;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import dk.northtech.dassco_specify_adapter.domain.CollectionConfig;
+import dk.northtech.dassco_specify_adapter.domain.InstitutionConfig;
+import dk.northtech.dassco_specify_adapter.domain.InstitutionConfigCredentials;
 import dk.northtech.dassco_specify_adapter.domain.sync.SpecifyArsSyncBatch;
 import dk.northtech.dassco_specify_adapter.domain.sync.SpecifySyncLogEntry;
 import org.jdbi.v3.core.Jdbi;
@@ -34,6 +37,9 @@ public class Datasource {
         return Jdbi.create(dataSource)
                 .installPlugin(new PostgresPlugin())
                 .installPlugin(new SqlObjectPlugin())
+                .registerRowMapper(ConstructorMapper.factory(InstitutionConfig.class))
+                .registerRowMapper(ConstructorMapper.factory(InstitutionConfigCredentials.class))
+                .registerRowMapper(ConstructorMapper.factory(CollectionConfig.class))
                 .registerRowMapper(ConstructorMapper.factory(SpecifyArsSyncBatch.class))
                 .registerRowMapper(ConstructorMapper.factory(SpecifySyncLogEntry.class));
     }
