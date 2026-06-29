@@ -36,6 +36,20 @@ public interface CollectionConfigRepository extends SqlObject {
             """)
     CollectionConfig getCollectionConfig(@Bind Long id);
 
+    @SqlQuery("""
+            SELECT id,
+                   institution_id AS institutionId,
+                   name,
+                   description,
+                   sync_to_specify_enabled AS syncToSpecifyEnabled,
+                   sync_from_specify_enabled AS syncFromSpecifyEnabled
+            FROM collection_config
+            WHERE institution_id = :institutionId
+              AND lower(name) = lower(:name)
+            """)
+    CollectionConfig getCollectionConfigByInstitutionIdAndName(@Bind("institutionId") Long institutionId,
+                                                               @Bind("name") String name);
+
     @GetGeneratedKeys
     @SqlUpdate("""
             INSERT INTO collection_config(institution_id, name, description, sync_to_specify_enabled, sync_from_specify_enabled)

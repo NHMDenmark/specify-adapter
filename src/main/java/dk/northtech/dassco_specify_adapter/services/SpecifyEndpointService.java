@@ -42,6 +42,7 @@ public class SpecifyEndpointService {
 
     KeycloakService keycloakService;
     InstitutionConfigCredentialsService institutionConfigCredentialsService;
+    SpecifyTargetResolverService specifyTargetResolverService;
     ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule()).configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
     ObjectWriter writer = new ObjectMapper().registerModule(new JavaTimeModule()).writer().withDefaultPrettyPrinter();
 
@@ -51,12 +52,14 @@ public class SpecifyEndpointService {
     public SpecifyEndpointService(SpecifyProperties specifyProperties,
                                   AssetFileService assetFileService,
                                   KeycloakService keycloakService,
-                                  InstitutionConfigCredentialsService institutionConfigCredentialsService) {
+                                  InstitutionConfigCredentialsService institutionConfigCredentialsService,
+                                  SpecifyTargetResolverService specifyTargetResolverService) {
         this.specifyProperties = specifyProperties;
         this.assetFileService = assetFileService;
 
         this.keycloakService = keycloakService;
         this.institutionConfigCredentialsService = institutionConfigCredentialsService;
+        this.specifyTargetResolverService = specifyTargetResolverService;
     }
     public SpecifyCollectionLogin loginToCollection(String collection) {
         LoginInfo loginInfo = login();
@@ -72,7 +75,13 @@ public class SpecifyEndpointService {
     }
 
     public List<AssetSpecimen> pushAssetToSpecify(CollectionObjectAttachment updateFromARS, Asset arsAsset) {
-        SpecifyCollectionLogin specifyLogin = loginToCollection(arsAsset.collection);
+        ResolvedSpecifyTarget target = specifyTargetResolverService.resolveForAsset(arsAsset);
+        LoginInfo loginInfo = login(target.institutionConfig().id());
+        Integer specifyCollectionId = loginInfo.collections.get(target.collectionConfig().name());
+        if (specifyCollectionId == null) {
+            throw new SpecifyAdapterException("No collection was found in Specify for collection config '" + target.collectionConfig().name() + "'", AcknowledgeStatus.MAPPING_ERROR);
+        }
+        SpecifyCollectionLogin specifyLogin = loginToCollection(target.institutionConfig().id(), specifyCollectionId, loginInfo.csrftoken);
 
 
 
@@ -153,7 +162,7 @@ public class SpecifyEndpointService {
         try {
             String json = writer.writeValueAsString(collectionObjectAttachment);
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(this.specifyProperties.rootUrl() + "/api/specify/collectionobjectattachment/" + collectionObjectAttachment.id + "/"))
+                    .uri(URI.create(login.rootUrl() + "/api/specify/collectionobjectattachment/" + collectionObjectAttachment.id + "/"))
                     .header("Cookie", "collection=" + login.collection() + ";csrftoken=" + login.csrftoken() + ";sessionid=" + login.sessionid())
                     .header("X-CSRFToken", login.csrftoken())
                     .PUT(HttpRequest.BodyPublishers.ofString(json))
@@ -243,16 +252,16 @@ public class SpecifyEndpointService {
     }
 
     public SpecifyCollectionLogin loginToCollection(int collection, String csrfToken) {
-        return loginToCollection(collection, csrfToken, this.specifyProperties.rootUrl(), this.specifyProperties.username(), this.specifyProperties.password());
+        return loginToCollection(collection, csrfToken, this.specifyProperties.rootUrl(), this.specifyProperties.username(), this.specifyProperties.password(), this.specifyProperties.assetServer());
     }
 
     public SpecifyCollectionLogin loginToCollection(Long institutionId, int collection, String csrfToken) {
         InstitutionConfigCredentials credentials = institutionConfigCredentialsService.getInstitutionConfigCredentials(institutionId)
                 .orElseThrow(() -> new IllegalArgumentException("Institution config " + institutionId + " has no stored Specify credentials"));
-        return loginToCollection(collection, csrfToken, credentials.specifyRootUrl(), credentials.specifyUsername(), credentials.specifyPassword());
+        return loginToCollection(collection, csrfToken, credentials.specifyRootUrl(), credentials.specifyUsername(), credentials.specifyPassword(), credentials.specifyAssetServerUrl());
     }
 
-    private SpecifyCollectionLogin loginToCollection(int collection, String csrfToken, String rootUrl, String username, String password) {
+    private SpecifyCollectionLogin loginToCollection(int collection, String csrfToken, String rootUrl, String username, String password, String assetServerUrl) {
 
         CookieManager cookieManager = new CookieManager();
         cookieManager.setCookiePolicy(CookiePolicy.ACCEPT_ALL);
@@ -302,7 +311,7 @@ public class SpecifyEndpointService {
                         collectionIdAsString = cookie.getValue();
                     }
                 }
-                return new SpecifyCollectionLogin(sessionId, newCsrfToken, collectionIdAsString);
+                return new SpecifyCollectionLogin(sessionId, newCsrfToken, collectionIdAsString, rootUrl, assetServerUrl);
             } else if (response.statusCode() == 403) {
                 throw new RuntimeException("Forbidden. There has been a problem logging into the Collection. Most likely scenario is the CSRF Token being wrong.");
             }
@@ -350,11 +359,11 @@ public class SpecifyEndpointService {
         );
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(this.specifyProperties.rootUrl() + "/context/login/"))
+                .uri(URI.create(login.rootUrl() + "/context/login/"))
                 .header("X-CSRFToken", login.csrftoken())
                 .header("Cookie", "csrftoken=" + login.csrftoken())
                 .header("Content-Type", "application/json")
-                .header("Referer", this.specifyProperties.rootUrl() + "/")
+                .header("Referer", login.rootUrl() + "/")
                 .PUT(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
 
@@ -378,7 +387,7 @@ public class SpecifyEndpointService {
         jsonObject.put("filenames", new JSONArray(filenames));
 
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(this.specifyProperties.rootUrl() + "/attachment_gw/get_upload_params/"))
+                .uri(URI.create(login.rootUrl() + "/attachment_gw/get_upload_params/"))
                 .header("X-CSRFToken", login.csrftoken())
                 .header("Cookie", "collection=" + login.collection() + ";csrftoken=" + login.csrftoken() + ";sessionid=" + login.sessionid())
                 .header("Content-Type", "application/json")
@@ -407,7 +416,7 @@ public class SpecifyEndpointService {
         HttpClient httpClient = HttpClient.newBuilder()
                 .build();
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(this.specifyProperties.rootUrl() + "/api/specify/collectionobject/?catalognumber=" + barcode))
+                .uri(URI.create(login.rootUrl() + "/api/specify/collectionobject/?catalognumber=" + barcode))
                 .header("Cookie", "collection=" + login.collection() + ";csrftoken=" + login.csrftoken() + ";sessionid=" + login.sessionid())
                 .header("X-CSRFToken", login.csrftoken())
                 .GET()
@@ -436,7 +445,7 @@ public class SpecifyEndpointService {
         try {
             String json = writer.writeValueAsString(collectionObjectAttachment);
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(this.specifyProperties.rootUrl() + "/api/specify/collectionobjectattachment/"))
+                    .uri(URI.create(login.rootUrl() + "/api/specify/collectionobjectattachment/"))
                     .header("Cookie", "collection=" + login.collection() + ";csrftoken=" + login.csrftoken() + ";sessionid=" + login.sessionid())
                     .header("X-CSRFToken", login.csrftoken())
                     .POST(HttpRequest.BodyPublishers.ofString(json))
@@ -456,7 +465,7 @@ public class SpecifyEndpointService {
     public <T> T getSpecifyObject(SpecifyCollectionLogin login, String specifyLocation, Class<T> clazz) {
         HttpClient httpClient = HttpClient.newBuilder().build();
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(this.specifyProperties.rootUrl() + specifyLocation))
+                .uri(URI.create(login.rootUrl() + specifyLocation))
                 .header("Cookie", "collection=" + login.collection() + ";csrftoken=" + login.csrftoken() + ";sessionid=" + login.sessionid())
                 .header("X-CSRFToken", login.csrftoken())
                 .GET()

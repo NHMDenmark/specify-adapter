@@ -3,6 +3,7 @@ package dk.northtech.dassco_specify_adapter.domain;
 import dk.northtech.dassco_specify_adapter.services.CollectionConfigService;
 import dk.northtech.dassco_specify_adapter.services.InstitutionConfigCredentialsService;
 import dk.northtech.dassco_specify_adapter.services.InstitutionConfigService;
+import dk.northtech.dassco_specify_adapter.services.SpecifyTargetResolverService;
 import jakarta.inject.Inject;
 import liquibase.Contexts;
 import liquibase.Liquibase;
@@ -43,6 +44,8 @@ class ConfigurationServiceTest {
     CollectionConfigService collectionConfigService;
     @Inject
     InstitutionConfigCredentialsService institutionConfigCredentialsService;
+    @Inject
+    SpecifyTargetResolverService specifyTargetResolverService;
     @Inject
     Jdbi jdbi;
 
@@ -239,5 +242,34 @@ class ConfigurationServiceTest {
 
         InstitutionConfigCredentials credentials = institutionConfigCredentialsService.getInstitutionConfigCredentials(institution.id()).orElseThrow();
         assertThat(credentials.specifyPassword()).isEqualTo("initial-password");
+    }
+
+    @Test
+    void arsToSpecifyTargetIsResolvedFromDatabaseConfigs() {
+        InstitutionConfig institution = institutionConfigService.createInstitutionConfig(new InstitutionConfigRequest(
+                "NHMD",
+                "https://specify.example",
+                "https://assets.example",
+                "specify-user",
+                "specify-password"
+        ));
+
+        collectionConfigService.createCollectionConfig(institution.id(), new CollectionConfig(
+                null,
+                null,
+                "Botany",
+                null,
+                true,
+                false
+        ));
+
+        Asset asset = new Asset();
+        asset.institution = "NHMD";
+        asset.collection = "Botany";
+
+        ResolvedSpecifyTarget target = specifyTargetResolverService.resolveForAsset(asset);
+        assertThat(target.institutionConfig().id()).isEqualTo(institution.id());
+        assertThat(target.institutionConfig().specifyPassword()).isEqualTo("specify-password");
+        assertThat(target.collectionConfig().name()).isEqualTo("Botany");
     }
 }

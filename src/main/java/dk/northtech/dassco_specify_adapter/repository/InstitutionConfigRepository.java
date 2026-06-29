@@ -39,12 +39,35 @@ public interface InstitutionConfigRepository extends SqlObject {
                    name,
                    specify_root_url AS specifyRootUrl,
                    specify_asset_server_url AS specifyAssetServerUrl,
+                   specify_username AS specifyUsername
+            FROM institution_config
+            WHERE lower(name) = lower(:name)
+            """)
+    InstitutionConfig getInstitutionConfigByName(@Bind("name") String name);
+
+    @SqlQuery("""
+            SELECT id,
+                   name,
+                   specify_root_url AS specifyRootUrl,
+                   specify_asset_server_url AS specifyAssetServerUrl,
                    specify_username AS specifyUsername,
                    specify_password_encrypted AS specifyPassword
             FROM institution_config
             WHERE id = :id
             """)
     InstitutionConfigCredentials getInstitutionConfigCredentials(@Bind Long id);
+
+    @SqlQuery("""
+            SELECT id,
+                   name,
+                   specify_root_url AS specifyRootUrl,
+                   specify_asset_server_url AS specifyAssetServerUrl,
+                   specify_username AS specifyUsername,
+                   specify_password_encrypted AS specifyPassword
+            FROM institution_config
+            WHERE lower(name) = lower(:name)
+            """)
+    InstitutionConfigCredentials getInstitutionConfigCredentialsByName(@Bind("name") String name);
 
     @SqlQuery("SELECT COUNT(*) FROM collection_config WHERE institution_id = :institutionId")
     int countCollections(@Bind Long institutionId);
