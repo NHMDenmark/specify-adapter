@@ -25,6 +25,6 @@ public class AssetQueueListener extends QueueListener {
         log.info("MESSAGE IN ASSET LISTENER:");
         log.info(message);
 //        int statusCode = this.specifyAdapterClient.sendAssets(message);
-        this.specifySyncService.sync(message);
+        this.specifySyncService.arsToSpecifySync(message);
     }
 }

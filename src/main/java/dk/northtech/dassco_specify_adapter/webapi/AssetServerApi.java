@@ -5,6 +5,7 @@ import com.drew.imaging.ImageProcessingException;
 import com.drew.metadata.Directory;
 import com.drew.metadata.Metadata;
 import com.drew.metadata.Tag;
+import dk.northtech.dassco_specify_adapter.configuration.ServerConfig;
 import dk.northtech.dassco_specify_adapter.configuration.SpecifyWebAssetServiceConfig;
 import dk.northtech.dassco_specify_adapter.domain.specify.LoginInfo;
 import dk.northtech.dassco_specify_adapter.services.AssetFileService;
@@ -22,6 +23,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.web.bind.annotation.CrossOrigin;
 
@@ -30,13 +32,16 @@ import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.*;
+import java.util.Objects;
 
 import static jakarta.ws.rs.core.MediaType.*;
 
 @Path("/")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "Asset Files", description = "Endpoints related to assets' files.")
 public class AssetServerApi {
+    private static final String TIMESTAMP_HEADER = "X-Timestamp";
     private final SpecifyWebAssetServiceConfig specifyWebAssetServiceConfig;
     private final SpecifyEndpointService specifyEndpointService;
     private final AssetFileService assetFileService;
@@ -46,16 +51,17 @@ public class AssetServerApi {
 
     private ServerProperties serverProperties;
 
-    String hostname = "host.docker.internal";
+    private final ServerConfig serverConfig;
 
 
     @Inject
-    public AssetServerApi(SpecifyWebAssetServiceConfig specifyWebAssetServiceConfig, SpecifyEndpointService specifyEndpointService, AssetFileService assetFileService, TokenService tokenService, ServerProperties serverProperties) {
+    public AssetServerApi(SpecifyWebAssetServiceConfig specifyWebAssetServiceConfig, SpecifyEndpointService specifyEndpointService, AssetFileService assetFileService, TokenService tokenService, ServerProperties serverProperties, ServerConfig serverConfig) {
         this.specifyWebAssetServiceConfig = specifyWebAssetServiceConfig;
         this.specifyEndpointService = specifyEndpointService;
         this.assetFileService = assetFileService;
         this.tokenService = tokenService;
         this.serverProperties = serverProperties;
+        this.serverConfig = serverConfig;
     }
 
     @GET
@@ -105,13 +111,13 @@ public class AssetServerApi {
         if(filename != null){
             String encodedName = URLEncoder.encode(filename, StandardCharsets.UTF_8).replace("+", "%20");
             return Response.status(response.statusCode())
-                    .header("X-Timestamp", String.valueOf(System.currentTimeMillis()))
+                    .header(TIMESTAMP_HEADER, currentTimestampSeconds())
 //                    .header("Content-Disposition", "inline; filename=*utf-8" + encodedName)
                     .header("Content-Type", new Tika().detect(updatedFileName))
                     .entity(streamingOutput).build();
         }
         return Response.status(200)
-                .header("X-Timestamp", String.valueOf(System.currentTimeMillis()))
+                .header(TIMESTAMP_HEADER, currentTimestampSeconds())
                 .header("Content-Disposition", "inline; attachment; filename=*utf-8" + updatedFileName)
                 .header("Content-Type", new Tika().detect(updatedFileName))
                 .entity(streamingOutput).build();
@@ -127,7 +133,7 @@ public class AssetServerApi {
         String path = this.assetFileService.pathToUrlPath(type, coll, filename, this.specifyWebAssetServiceConfig.fileFriendlyPostfix(), scale);
         var response = this.assetFileService.readFilePathFromParkedFiles(coll, type, filename, this.specifyWebAssetServiceConfig.fileFriendlyPostfix(), scale);
         if(response.statusCode() == 200){
-            return Response.status(200).entity(this.hostname + ":" + this.serverProperties.getPort() + "/static/" + path).build();
+            return Response.status(200).entity(serverConfig.rootUrl() + "/static/" + path).build();
         }
         return Response.status(response.statusCode()).entity(response.body()).build();
     }
@@ -162,13 +168,13 @@ public class AssetServerApi {
         if(downloadName != null){
             String encodedName = URLEncoder.encode(downloadName, StandardCharsets.UTF_8).replace("+", "%20");
             return Response.status(response.statusCode())
-                    .header("X-Timestamp", String.valueOf(System.currentTimeMillis()))
+                    .header(TIMESTAMP_HEADER, currentTimestampSeconds())
                     .header("Content-Disposition", "inline; filename=*utf-8" + encodedName)
                     .header("Content-Type", new Tika().detect(updatedFileName))
                     .entity(streamingOutput).build();
         }
         return Response.status(200)
-                .header("X-Timestamp", String.valueOf(System.currentTimeMillis()))
+                .header(TIMESTAMP_HEADER, currentTimestampSeconds())
                 .header("Content-Disposition", "inline; attachment; filename=*utf-8" + updatedFileName)
                 .header("Content-Type", new Tika().detect(updatedFileName))
                 .entity(streamingOutput).build();
@@ -206,18 +212,43 @@ public class AssetServerApi {
 
         int status = this.assetFileService.postFileToParkedFiles(file, "originals", coll, store, this.specifyWebAssetServiceConfig.fileFriendlyPostfix());
 
-        return status == 200 ? Response.status(200).entity("Ok.").header("X-Timestamp", String.valueOf(System.currentTimeMillis())).build() : Response.status(status).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).build();
+        return status == 200 ? Response.status(200).entity("Ok.").header(TIMESTAMP_HEADER, currentTimestampSeconds()).build() : Response.status(status).header(TIMESTAMP_HEADER, currentTimestampSeconds()).build();
     }
 
     @POST
     @Operation(summary = "Deletes a file in the parking spot in the File Proxy")
     @ApiResponse(responseCode = "200", description = "Ok.")
+    @Consumes(APPLICATION_FORM_URLENCODED)
     @Produces("text/plain;charset=UTF-8")
     @Path("filedelete")
-    public Response deleteFile(@FormParam("coll") String coll, @FormParam("filename") String filename){
+    public Response deleteFile(@FormParam("coll") String coll, @FormParam("filename") String filename, @FormParam("token") String token){
         LOGGER.info("filedelete");
-        int status = assetFileService.deleteFileFromParkedFiles(coll, filename, this.specifyWebAssetServiceConfig.fileFriendlyPostfix());
-        return Response.status(status).entity(status == 200 ? "Ok." : "").build();
+        if (coll == null || coll.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .header(TIMESTAMP_HEADER, currentTimestampSeconds())
+                    .entity("Missing required form field: coll")
+                    .build();
+        }
+        if (filename == null || filename.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .header(TIMESTAMP_HEADER, currentTimestampSeconds())
+                    .entity("Missing required form field: filename")
+                    .build();
+        }
+
+        this.tokenService.validateToken(token, filename);
+
+        try {
+            int status = assetFileService.deleteFileFromParkedFiles(coll, filename, this.specifyWebAssetServiceConfig.fileFriendlyPostfix());
+            String entity = status == 200 ? "Ok." : status == 404 ? "Not found." : "Deletion failed with status: " + status;
+            return Response.status(status).header(TIMESTAMP_HEADER, currentTimestampSeconds()).entity(entity).build();
+        } catch (RuntimeException e) {
+            LOGGER.error("filedelete failed for coll {} filename {}", coll, filename, e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .header(TIMESTAMP_HEADER, currentTimestampSeconds())
+                    .entity("Deletion failed: " + e.getMessage())
+                    .build();
+        }
     }
 
     @GET
@@ -232,7 +263,7 @@ public class AssetServerApi {
         }
         HttpResponse<InputStream> response = assetFileService.readFileFromParkedFiles(coll, "O", filename, this.specifyWebAssetServiceConfig.fileFriendlyPostfix(), null);
         if(response.statusCode() != 200){
-            return Response.status(response.statusCode()).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity(response.body()).build();
+            return Response.status(response.statusCode()).header(TIMESTAMP_HEADER, currentTimestampSeconds()).entity(response.body()).build();
         }
 
         try (InputStream is = new BufferedInputStream(response.body())) {
@@ -251,9 +282,9 @@ public class AssetServerApi {
             if(Objects.equals(dt, "date")){
                 String dateTimeOriginal = metaMap.get("EXIF DateTimeOriginal");
                 if(dateTimeOriginal != null){
-                    return Response.status(Response.Status.OK).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity(dateTimeOriginal).build();
+                    return Response.status(Response.Status.OK).header(TIMESTAMP_HEADER, currentTimestampSeconds()).entity(dateTimeOriginal).build();
                 }else{
-                    return Response.status(Response.Status.NOT_FOUND).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity("DateTime not found in EXIF").build();
+                    return Response.status(Response.Status.NOT_FOUND).header(TIMESTAMP_HEADER, currentTimestampSeconds()).entity("DateTime not found in EXIF").build();
                 }
             }
 
@@ -265,12 +296,12 @@ public class AssetServerApi {
                 jsonArray.put(obj);
             }
 
-            return Response.status(Response.Status.OK).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).entity(jsonArray.toString()).build();
+            return Response.status(Response.Status.OK).header(TIMESTAMP_HEADER, currentTimestampSeconds()).entity(jsonArray.toString()).build();
 
 
         } catch (IOException | ImageProcessingException e) {
             LOGGER.error(e.getMessage());
-            return Response.status(Response.Status.OK).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).build();
+            return Response.status(Response.Status.OK).header(TIMESTAMP_HEADER, currentTimestampSeconds()).build();
 
         }
     }
@@ -284,7 +315,7 @@ public class AssetServerApi {
         LOGGER.info("testkey");
         //overrides -> tokenRequiredForGet
         this.tokenService.validateToken(token, random);
-        return Response.status(Response.Status.OK).entity("Ok.").build();
+        return Response.status(Response.Status.OK).header(TIMESTAMP_HEADER, currentTimestampSeconds()).entity("Ok.").build();
     }
 
     @GET
@@ -297,13 +328,17 @@ public class AssetServerApi {
         String xml = """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <urls>
-                    <url type="read"><![CDATA[http://{{host}}:{{serverPort}}/fileget]]></url>
-                    <url type="write"><![CDATA[http://{{host}}:{{serverPort}}/fileupload]]></url>
-                    <url type="delete"><![CDATA[http://{{host}}:{{serverPort}}/filedelete]]></url>
-                    <url type="getmetadata"><![CDATA[http://{{host}}:{{serverPort}}/getmetadata]]></url>
-                    <url type="testkey">http://{{host}}:{{serverPort}}/testkey</url>
+                    <url type="read"><![CDATA[{{host}}/fileget]]></url>
+                    <url type="write"><![CDATA[{{host}}/fileupload]]></url>
+                    <url type="delete"><![CDATA[{{host}}/filedelete]]></url>
+                    <url type="getmetadata"><![CDATA[{{host}}/getmetadata]]></url>
+                    <url type="testkey">{{host}}/testkey</url>
                 </urls>
-                """.replace("{{host}}", hostname).replace("{{serverPort}}", this.serverProperties.getPort().toString());
-        return Response.status(Response.Status.OK).entity(xml).header("X-Timestamp", String.valueOf(System.currentTimeMillis())).build();
-}
+                """.replace("{{host}}", serverConfig.rootUrl());
+        return Response.status(Response.Status.OK).entity(xml).header(TIMESTAMP_HEADER, currentTimestampSeconds()).build();
+    }
+
+    private String currentTimestampSeconds() {
+        return String.valueOf(Instant.now().getEpochSecond());
+    }
 }
