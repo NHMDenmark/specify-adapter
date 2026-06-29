@@ -88,7 +88,6 @@ public class SpecifyEndpointService {
                     if (coath.id.equals(assetSpecimen.specify_collection_object_attachment_id)) {
                         coath.collectionmemberid = collectionObject.collectionmemberid;
                         coath.collectionobject = "/api/specify/collectionobject/" + collectionObject.id;
-//                    attachmentToUpdate.version = attachmentToUpdate.version == null ? 1 : attachmentToUpdate.version;
                         moveValuesToExisting(updateFromARS.attachment, coath.attachment);
                         setAttachmentLocation(coath.attachment, arsAsset);
                         logger.info("Tombstoning collectionObjectAttachment: {}", coath.toString());
@@ -110,8 +109,6 @@ public class SpecifyEndpointService {
                         logger.info("found attachment to update");
                         coath.collectionmemberid = collectionObject.collectionmemberid;
                         coath.collectionobject = "/api/specify/collectionobject/" + collectionObject.id;
-//                    attachmentToUpdate.version = attachmentToUpdate.version == null ? 1 : attachmentToUpdate.version;
-//                    attachmentToUpdate.attachment.version = attachmentToUpdate.attachment.version == null || attachmentToUpdate.attachment.version == 0 ? 2 : attachmentToUpdate.attachment.version;
                         moveValuesToExisting(updateFromARS.attachment, coath.attachment);
                         setAttachmentLocation(coath.attachment, arsAsset);
                         logger.info("Updating collectionObjectAttachment: {}", updateFromARS.toString());
@@ -146,42 +143,6 @@ public class SpecifyEndpointService {
         return specimenWithIds;
     }
 
-    private UploadParams tombstoneAttachment(SpecifyCollectionLogin specifyLogin, CollectionObjectAttachment attachmentToUpdate, Asset arsAsset) {
-        String token = keycloakService.getUserServiceToken();
-        // 6: Get files in ERDA:
-//        List<String> files = assetFileService.getAssetFiles(arsAsset.assetGuid, token);
-//        files.forEach(s -> logger.info("Asset has file: {}", s));
-        // 7: Sanitize the list of files to only get the filenames:
-        String fileName = arsAsset.asset_guid + "-tombstone.json";
-        // 8: Get Upload Params:
-        List<UploadParams> uploadParams = getUploadParams(specifyLogin, List.of(fileName));
-
-//        Tika tika = new Tika();
-//        String[] parts = files.get(0).split("/");
-//        String fileInstitution = parts[2];
-//        String fileCollection = parts[3];
-//        String asset = parts[4];
-//        String path = parts[5];
-//        String filename = parts[parts.length - 1];
-//        String mimeType = tika.detect(filename);
-        // 10.b: Get token and attachmentLocation from the uploadParams:
-//            JSONObject uploadParam = uploadParams.getJSONObject(i);
-        UploadParams uploadParam = uploadParams.get(0);
-        String attachmentLocation = uploadParam.attachmentLocation;
-        String attachmentToken = uploadParam.token;
-        // 10.c: Fetch the file:
-        InputStream inputStream = null;
-        attachmentToUpdate.attachment.mimetype = "application/json";
-        try {
-            inputStream = new ByteArrayInputStream(writer.writeValueAsBytes(arsAsset));
-            // 10.d: Upload file to the asset server:
-            uploadFile(attachmentToken, attachmentLocation, arsAsset.collection, inputStream, fileName);
-        } catch (JsonProcessingException e) {
-            logger.error("Failed to tombstone asset", e);
-            throw new SpecifyAdapterException("Failed to write asset object to file", AcknowledgeStatus.FILE_UPLOAD_ERROR);
-        }
-        return uploadParam;
-    }
 
     public CollectionObjectAttachment putCollectionObjectAttachment(CollectionObjectAttachment collectionObjectAttachment, SpecifyCollectionLogin login) {
         HttpClient httpClient = HttpClient.newBuilder().build();
@@ -219,34 +180,6 @@ public class SpecifyEndpointService {
         }
         attachment.attachmentlocation = filenames.getFirst();
     }
-
-
-//    public UploadParams duploadFile(SpecifyCollectionLogin specifyLogin, CollectionObjectAttachment collectionObjectAttachment, Asset arsAsset) {
-//
-//        // 8: Get Upload Params:
-//        List<UploadParams> uploadParams = getUploadParams(specifyLogin, filenames);
-//
-//        Tika tika = new Tika();
-//        String[] parts = files.get(0).split("/");
-//        String fileInstitution = parts[2];
-//        String fileCollection = parts[3];
-//        String asset = parts[4];
-//        String path = parts[5];
-//        String filename = parts[parts.length - 1];
-//        String mimeType = tika.detect(filename);
-//        collectionObjectAttachment.attachment.mimetype = mimeType;
-//        // 10.b: Get token and attachmentLocation from the uploadParams:
-////            JSONObject uploadParam = uploadParams.getJSONObject(i);
-//        UploadParams uploadParam = uploadParams.get(0);
-//        String attachmentLocation = uploadParam.attachmentLocation;
-//        String attachmentToken = uploadParam.token;
-//        // 10.c: Fetch the file:
-//        InputStream inputStream = assetFileService.fetchFiles(fileInstitution, fileCollection, asset, path, token);
-//        // 10.d: Upload file to the asset server:
-//        uploadFile(attachmentToken, attachmentLocation, arsAsset.collection, inputStream, filename);
-//        return uploadParam;
-//    }
-
 
     public void moveValuesToExisting(Attachment withARSValues, Attachment fromSpecify) {
         fromSpecify.mimetype = withARSValues.mimetype;
@@ -442,37 +375,6 @@ public class SpecifyEndpointService {
                 throw new RuntimeException("Something failed when getting the Upload Params");
             }
         } catch (IOException | InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-
-    public void uploadFile(String attachmentToken, String attachmentLocation, String collectionName, InputStream inputStream, String filename) {
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-
-            HttpPost uploadFile = new HttpPost(this.specifyProperties.assetServer() + "/fileupload");
-            MultipartEntityBuilder builder = MultipartEntityBuilder.create();
-            builder.addTextBody("token", attachmentToken, ContentType.TEXT_PLAIN);
-            builder.addTextBody("store", attachmentLocation, ContentType.TEXT_PLAIN);
-            builder.addTextBody("type", "O", ContentType.TEXT_PLAIN);
-            builder.addTextBody("coll", collectionName, ContentType.TEXT_PLAIN);
-            builder.addBinaryBody("file", inputStream, ContentType.APPLICATION_OCTET_STREAM, filename);
-
-            uploadFile.setEntity(builder.build());
-
-            HttpEntity response = httpClient.execute(uploadFile, classicHttpResponse -> {
-                int status = classicHttpResponse.getCode();
-                HttpEntity entity = classicHttpResponse.getEntity();
-
-                String responseBody = EntityUtils.toString(entity);
-
-                if (status == 200) {
-                    return classicHttpResponse.getEntity();
-                } else {
-                    throw new IOException("This happened: " + classicHttpResponse.getEntity().toString());
-                }
-            });
-        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
