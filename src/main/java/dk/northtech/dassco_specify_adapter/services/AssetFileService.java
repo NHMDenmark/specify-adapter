@@ -42,7 +42,7 @@ public class AssetFileService {
 
     public List<String> getAssetFiles(String assetGuid, String token) {
         HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(fileProxyProperties.rootUrl() + "/file_proxy/api/assetfiles/listfiles/" + assetGuid))
+                .uri(URI.create(fileProxyProperties.rootUrl() + "/file_proxy/api/assetfiles/listfiles/" + assetGuid + "?includethumbnails=false"))
                 .header("Authorization", "Bearer " + token)
                 .GET()
                 .build();
