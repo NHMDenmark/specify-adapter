@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>dk.northtech</groupId>
 	<artifactId>specify-adapter</artifactId>
-	<version>1.3.6</version>
+	<version>1.3.7</version>
 	<name>specify-adapter</name>
 	<description>Specify Adapter</description>
 	<url/>
